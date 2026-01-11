@@ -118,16 +118,30 @@ The script will:
 
 > **Problem:** Pipeline triggers show only `azuregit` (Azure Repos), not GitHub
 
-**Solution:** See [PIPELINE-CONFIG-GITHUB.md](PIPELINE-CONFIG-GITHUB.md) for:
-- How to update pipeline YAML to use GitHub service connection
-- How to configure pipeline triggers via Azure DevOps UI
+**Solution: Use Option 6 (Automated) or Manual:**
+
+### Automated (RECOMMENDED) - Option 6
+The helper script can automatically update your pipeline YAML:
+1. Navigate to your repository directory
+2. Run: `.\ServiceConnection-Helper.ps1`
+3. Select **Option 6: Update Pipeline YAML for GitHub Triggers**
+4. Script will automatically:
+   - Find your `azure-pipelines.yml` file
+   - Add GitHub repository resource
+   - Update service connection reference
+   - Update checkout step to use GitHub
+   - Ask for confirmation before making changes
+
+### Manual Setup
+See [PIPELINE-CONFIG-GITHUB.md](PIPELINE-CONFIG-GITHUB.md) for:
+- How to manually update pipeline YAML
+- How to configure via Azure DevOps UI
 - How to verify pipelines trigger on GitHub push
 
-**Quick Summary:**
-- Update `azure-pipelines.yml` to reference your service connection
-- Set trigger repository to your GitHub repo
-- Test by pushing code to GitHub
-- Verify pipeline runs automatically
+**After updating:**
+- Commit: `git add azure-pipelines.yml && git commit -m 'Update pipeline for GitHub triggers'`
+- Push: `git push`
+- Test by pushing code to verify pipeline triggers
 
 ---
 
@@ -180,17 +194,27 @@ The script will:
 - Creates Service Hook subscription automatically
 - Perfect for: Already have OAuth service connection, just missing webhooks
 
-### 6. View Service Connections
+### 6. Update Pipeline YAML for GitHub Triggers **[AUTOMATED]**
+**Automatically configure pipelines to use GitHub repository as trigger source:**
+- Reads your `azure-pipelines.yml` file
+- Automatically adds GitHub repository resource
+- Updates service connection reference
+- Updates checkout step to use GitHub
+- Perfect for: Fixing "azuregit only" pipeline trigger issue
+- No manual YAML editing required - script does it all
+- Asks for confirmation before making changes
+
+### 7. View Service Connections
 - Links to Azure DevOps service connections settings
 - Links to service hooks page
 - Multiple projects support - menu to select
 
-### 7. View CSV Data
+### 8. View CSV Data
 - Displays all configured service connections from CSV
 - Formatted table view for easy review
 - No authentication required
 
-### 8. Manage Authentication
+### 9. Manage Authentication
 - Add/update GitHub PAT anytime (for Option 1 - PAT-based)
 - Add/update Azure DevOps PAT anytime
 - Clear individual or all PATs

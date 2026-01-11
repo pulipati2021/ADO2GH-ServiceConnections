@@ -43,10 +43,11 @@ function Show-Menu {
     Write-Host "3. Validate Service Connection" -ForegroundColor Yellow
     Write-Host "4. Test GitHub Webhook" -ForegroundColor Yellow
     Write-Host "5. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
-    Write-Host "6. View Service Connections" -ForegroundColor Yellow
-    Write-Host "7. View CSV Data" -ForegroundColor Yellow
-    Write-Host "8. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
-    Write-Host "9. Exit" -ForegroundColor Yellow
+    Write-Host "6. Update Pipeline YAML for GitHub Triggers [AUTOMATED]" -ForegroundColor Green
+    Write-Host "7. View Service Connections" -ForegroundColor Yellow
+    Write-Host "8. View CSV Data" -ForegroundColor Yellow
+    Write-Host "9. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
+    Write-Host "10. Exit" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
 }
@@ -1145,6 +1146,154 @@ function View-ServiceConnections {
     Write-Host ""
 }
 
+function Update-PipelineYAMLFiles {
+    Write-Host ""
+    Write-Host "Automated Pipeline YAML Configuration" -ForegroundColor Cyan
+    Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "This will automatically update your pipeline YAML to use GitHub triggers." -ForegroundColor Yellow
+    Write-Host ""
+    
+    $data = Read-ServiceConnectionCSV
+    if ($null -eq $data) { return }
+    
+    # Handle both single connection and array of connections
+    if ($data -is [System.Array]) {
+        $connections = $data
+    } else {
+        $connections = @($data)
+    }
+    
+    # If multiple connections, ask which one
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple repositories found:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].RepositoryOwner)/$($connections[$i].RepositoryName)"
+        }
+        Write-Host "$($connections.Count + 1). Cancel"
+        Write-Host ""
+        
+        $selection = Read-Host "Select repository (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
+        $index = [int]$selection - 1
+        
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
+    
+    Write-Host ""
+    Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor Yellow
+    Write-Host "Service Connection: $($connection.ServiceConnectionName)" -ForegroundColor White
+    Write-Host ""
+    
+    # Get current directory (should be the repository root)
+    $repoPath = Get-Location
+    
+    Write-Host "Looking for pipeline files in: $repoPath" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Check if azure-pipelines.yml exists
+    $pipelineFile = Join-Path $repoPath "azure-pipelines.yml"
+    if (-not (Test-Path $pipelineFile)) {
+        $pipelineFile = Join-Path $repoPath "azure-pipelines.yaml"
+    }
+    
+    if (-not (Test-Path $pipelineFile)) {
+        Write-Host "[ERROR] No azure-pipelines.yml or azure-pipelines.yaml found!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Make sure:" -ForegroundColor Yellow
+        Write-Host "1. You're in the repository root directory" -ForegroundColor White
+        Write-Host "2. Pipeline file exists (usually: azure-pipelines.yml)" -ForegroundColor White
+        Write-Host ""
+        return
+    }
+    
+    Write-Host "Found pipeline file: azure-pipelines.yml" -ForegroundColor Green
+    Write-Host ""
+    
+    $confirm = Read-Host "Proceed with updating pipeline YAML? (yes/no)"
+    if ($confirm -ne "yes" -and $confirm -ne "y") {
+        Write-Host "Cancelled" -ForegroundColor Yellow
+        return
+    }
+    
+    # Read current YAML
+    $yamlContent = Get-Content -Path $pipelineFile -Raw
+    
+    # Check if already has GitHub resources
+    if ($yamlContent -like "*type: github*" -and $yamlContent -like "*endpoint:*$($connection.ServiceConnectionName)*") {
+        Write-Host ""
+        Write-Host "[!] Pipeline already configured with GitHub service connection" -ForegroundColor Yellow
+        Write-Host "Service connection: $($connection.ServiceConnectionName)" -ForegroundColor White
+    }
+    
+    # Create GitHub resources section
+    $branch = "main"
+    $githubResourcesSection = @"
+resources:
+  repositories:
+    - repository: GitHub
+      type: github
+      endpoint: $($connection.ServiceConnectionName)
+      name: $($connection.RepositoryOwner)/$($connection.RepositoryName)
+      ref: refs/heads/$branch
+"@
+    
+    Write-Host ""
+    Write-Host "Adding GitHub resources section to pipeline..." -ForegroundColor Cyan
+    
+    # Check if resources section exists
+    if ($yamlContent -like "*resources:*") {
+        Write-Host "[!] Pipeline already has 'resources:' section - merging..." -ForegroundColor Yellow
+        if ($yamlContent -like "*repositories:*") {
+            # Just add our GitHub one if not already there
+            if ($yamlContent -notlike "*type: github*") {
+                $yamlContent = $yamlContent -replace '(repositories:)', "$1`n    - repository: GitHub`n      type: github`n      endpoint: $($connection.ServiceConnectionName)`n      name: $($connection.RepositoryOwner)/$($connection.RepositoryName)`n      ref: refs/heads/$branch"
+            }
+        } else {
+            $yamlContent = $yamlContent -replace '(resources:)', "$1`n  repositories:`n    - repository: GitHub`n      type: github`n      endpoint: $($connection.ServiceConnectionName)`n      name: $($connection.RepositoryOwner)/$($connection.RepositoryName)`n      ref: refs/heads/$branch"
+        }
+    } else {
+        Write-Host "[+] Adding 'resources:' section to pipeline" -ForegroundColor Green
+        if ($yamlContent -like "*trigger:*") {
+            $yamlContent = $githubResourcesSection + "`n`n" + $yamlContent
+        } else {
+            $yamlContent = $githubResourcesSection + "`n`n" + $yamlContent
+        }
+    }
+    
+    # Update checkout step to use GitHub if exists
+    if ($yamlContent -like "*checkout:*") {
+        Write-Host "[+] Updating checkout step to use GitHub repository" -ForegroundColor Green
+        $yamlContent = $yamlContent -replace '- checkout: self', '- checkout: GitHub'
+    }
+    
+    # Save updated YAML
+    Set-Content -Path $pipelineFile -Value $yamlContent
+    
+    Write-Host ""
+    Write-Host "[OK] Pipeline YAML updated successfully!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Changes made:" -ForegroundColor Green
+    Write-Host "  [OK] Added GitHub repository resource" -ForegroundColor Green
+    Write-Host "  [OK] Set endpoint to: $($connection.ServiceConnectionName)" -ForegroundColor Green
+    Write-Host "  [OK] Set repository to: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "Next steps:" -ForegroundColor Cyan
+    Write-Host "1. Review the changes: git diff azure-pipelines.yml" -ForegroundColor White
+    Write-Host "2. Commit the changes: git add azure-pipelines.yml && git commit -m 'Update pipeline to use GitHub triggers'" -ForegroundColor White
+    Write-Host "3. Push to GitHub: git push" -ForegroundColor White
+    Write-Host "4. Test by pushing code to GitHub - pipeline should trigger automatically" -ForegroundColor White
+    Write-Host ""
+}
+
 # Main execution
 if ($Action -eq "menu") {
     Initialize-Session
@@ -1159,10 +1308,11 @@ if ($Action -eq "menu") {
             "3" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
             "4" { Test-Webhook; Read-Host "Press Enter to continue" }
             "5" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
-            "6" { View-ServiceConnections; Read-Host "Press Enter to continue" }
-            "7" { Show-CSVData; Read-Host "Press Enter to continue" }
-            "8" { Manage-Authentication }
-            "9" { exit }
+            "6" { Update-PipelineYAMLFiles; Read-Host "Press Enter to continue" }
+            "7" { View-ServiceConnections; Read-Host "Press Enter to continue" }
+            "8" { Show-CSVData; Read-Host "Press Enter to continue" }
+            "9" { Manage-Authentication }
+            "10" { exit }
             default { Write-Host "Invalid option" -ForegroundColor Red; Read-Host "Press Enter to continue" }
         }
     } while ($true)
