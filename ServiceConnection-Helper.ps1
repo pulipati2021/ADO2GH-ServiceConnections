@@ -145,6 +145,28 @@ function Manage-Authentication {
     Read-Host "Press Enter to continue"
 }
 
+function Get-ProjectId {
+    param(
+        [string]$OrgUrl,
+        [string]$ProjectName,
+        [hashtable]$AuthHeader
+    )
+    
+    try {
+        $response = Invoke-RestMethod `
+            -Uri "$OrgUrl/_apis/projects/$ProjectName`?api-version=6.0" `
+            -Method Get `
+            -Headers $AuthHeader `
+            -ErrorAction Stop
+        
+        return $response.id
+    } catch {
+        Write-Host "[ERROR] Failed to get project ID for '$ProjectName'" -ForegroundColor Red
+        Write-Host "Error: $_" -ForegroundColor Red
+        return $null
+    }
+}
+
 function New-ServiceConnection {
     Write-Host ""
     Write-Host "Creating Service Connection..." -ForegroundColor Cyan
@@ -212,6 +234,18 @@ function New-ServiceConnection {
     # Prepare authentication header for Azure DevOps API
     $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$adoPat")) }
     
+    # Get the project ID
+    Write-Host "Fetching project ID..." -ForegroundColor Cyan
+    $projectId = Get-ProjectId -OrgUrl $orgUrl -ProjectName $projectName -AuthHeader $authHeader
+    
+    if ($null -eq $projectId) {
+        Write-Host "Cannot proceed without project ID" -ForegroundColor Red
+        return
+    }
+    
+    Write-Host "Project ID: $projectId" -ForegroundColor White
+    Write-Host ""
+    
     # Service connection payload for GitHub
     $serviceConnectionPayload = @{
         name = $scName
@@ -228,7 +262,7 @@ function New-ServiceConnection {
         serviceEndpointProjectReferences = @(
             @{
                 projectReference = @{
-                    id = $null
+                    id = $projectId
                     name = $projectName
                 }
                 name = $scName
