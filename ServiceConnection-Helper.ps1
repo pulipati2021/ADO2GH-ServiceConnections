@@ -174,13 +174,14 @@ function New-ServiceConnection {
         for ($i = 0; $i -lt $connections.Count; $i++) {
             Write-Host "$($i + 1). $($connections[$i].ServiceConnectionName) in $($connections[$i].Organization)/$($connections[$i].ProjectName)"
         }
+        Write-Host "$($connections.Count + 1). Cancel"
         Write-Host ""
         
-        $selection = Read-Host "Select connection to create (1-$($connections.Count))"
+        $selection = Read-Host "Select connection to create (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
         $index = [int]$selection - 1
         
-        if ($index -lt 0 -or $index -ge $connections.Count) {
-            Write-Host "Invalid selection" -ForegroundColor Red
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
             return
         }
         $connection = $connections[$index]
@@ -224,7 +225,16 @@ function New-ServiceConnection {
         }
         description = "Service connection for $($connection.RepositoryOwner)/$($connection.RepositoryName)"
         operationStatus = $null
-    } | ConvertTo-Json
+        serviceEndpointProjectReferences = @(
+            @{
+                projectReference = @{
+                    id = $null
+                    name = $projectName
+                }
+                name = $scName
+            }
+        )
+    } | ConvertTo-Json -Depth 10
     
     Write-Host "Sending request to Azure DevOps API..." -ForegroundColor Cyan
     
@@ -295,13 +305,14 @@ function Test-ServiceConnection {
         for ($i = 0; $i -lt $connections.Count; $i++) {
             Write-Host "$($i + 1). $($connections[$i].ServiceConnectionName) ($($connections[$i].Organization)/$($connections[$i].ProjectName))"
         }
+        Write-Host "$($connections.Count + 1). Cancel"
         Write-Host ""
         
-        $selection = Read-Host "Select connection to test (1-$($connections.Count))"
+        $selection = Read-Host "Select connection to test (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
         $index = [int]$selection - 1
         
-        if ($index -lt 0 -or $index -ge $connections.Count) {
-            Write-Host "Invalid selection" -ForegroundColor Red
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
             return
         }
         $connection = $connections[$index]
@@ -403,13 +414,14 @@ function Test-Webhook {
         for ($i = 0; $i -lt $connections.Count; $i++) {
             Write-Host "$($i + 1). $($connections[$i].RepositoryOwner)/$($connections[$i].RepositoryName)"
         }
+        Write-Host "$($connections.Count + 1). Cancel"
         Write-Host ""
         
-        $selection = Read-Host "Select repository to check webhook (1-$($connections.Count))"
+        $selection = Read-Host "Select repository to check webhook (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
         $index = [int]$selection - 1
         
-        if ($index -lt 0 -or $index -ge $connections.Count) {
-            Write-Host "Invalid selection" -ForegroundColor Red
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
             return
         }
         $connection = $connections[$index]
@@ -455,13 +467,14 @@ function View-ServiceConnections {
         for ($i = 0; $i -lt $uniqueProjects.Count; $i++) {
             Write-Host "$($i + 1). $($uniqueProjects[$i].Organization)/$($uniqueProjects[$i].ProjectName)"
         }
+        Write-Host "$($uniqueProjects.Count + 1). Cancel"
         Write-Host ""
         
-        $selection = Read-Host "Select project to view (1-$($uniqueProjects.Count))"
+        $selection = Read-Host "Select project to view (1-$($uniqueProjects.Count), or $($uniqueProjects.Count + 1) to cancel)"
         $index = [int]$selection - 1
         
-        if ($index -lt 0 -or $index -ge $uniqueProjects.Count) {
-            Write-Host "Invalid selection" -ForegroundColor Red
+        if ($selection -eq "$($uniqueProjects.Count + 1)" -or $index -lt 0 -or $index -ge $uniqueProjects.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
             return
         }
         $selectedProject = $uniqueProjects[$index]
