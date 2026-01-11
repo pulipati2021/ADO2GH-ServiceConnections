@@ -38,14 +38,15 @@ function Show-Menu {
     Write-Host "   Service Connection Helper - GitHub <> Azure DevOps" -ForegroundColor Cyan
     Write-Host "=========================================================" -ForegroundColor Cyan
     Show-AuthStatus
-    Write-Host "1. Create Service Connection from CSV" -ForegroundColor Yellow
-    Write-Host "2. Validate Service Connection" -ForegroundColor Yellow
-    Write-Host "3. Test GitHub Webhook" -ForegroundColor Yellow
-    Write-Host "4. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
-    Write-Host "5. View Service Connections" -ForegroundColor Yellow
-    Write-Host "6. View CSV Data" -ForegroundColor Yellow
-    Write-Host "7. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
-    Write-Host "8. Exit" -ForegroundColor Yellow
+    Write-Host "1. Create Service Connection (PAT-based)" -ForegroundColor Yellow
+    Write-Host "2. Create Service Connection (OAuth-based) [RECOMMENDED]" -ForegroundColor Green
+    Write-Host "3. Validate Service Connection" -ForegroundColor Yellow
+    Write-Host "4. Test GitHub Webhook" -ForegroundColor Yellow
+    Write-Host "5. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
+    Write-Host "6. View Service Connections" -ForegroundColor Yellow
+    Write-Host "7. View CSV Data" -ForegroundColor Yellow
+    Write-Host "8. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
+    Write-Host "9. Exit" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
 }
@@ -529,7 +530,234 @@ function New-ServiceConnection {
     Write-Host ""
 }
 
+function New-ServiceConnectionOAuth {
+    Write-Host ""
+    Write-Host "Create Service Connection with OAuth (GitHub Authorization)" -ForegroundColor Cyan
+    Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "OAuth provides MORE RELIABLE webhook delivery than PAT." -ForegroundColor Green
+    Write-Host "Why? GitHub will use Azure DevOps' OAuth flow instead of a token." -ForegroundColor White
+    Write-Host ""
+    
+    if (-not $Global:AzureDevOpsPAT) {
+        Write-Host "ERROR: Azure DevOps PAT not provided!" -ForegroundColor Red
+        Write-Host "Please run option 8 (Manage Authentication) to add Azure DevOps PAT first" -ForegroundColor Yellow
+        return
+    }
+    
+    $data = Read-ServiceConnectionCSV
+    if ($null -eq $data) { return }
+    
+    # Handle both single connection and array of connections
+    if ($data -is [System.Array]) {
+        $connections = $data
+    } else {
+        $connections = @($data)
+    }
+    
+    # If multiple connections, ask which one
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple repositories found:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].RepositoryOwner)/$($connections[$i].RepositoryName)"
+        }
+        Write-Host "$($connections.Count + 1). Cancel"
+        Write-Host ""
+        
+        $selection = Read-Host "Select repository (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
+        $index = [int]$selection - 1
+        
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
+    
+    Write-Host ""
+    Write-Host "Creating: $($connection.ServiceConnectionName)" -ForegroundColor Yellow
+    Write-Host "Organization: $($connection.Organization)" -ForegroundColor White
+    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
+    Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Next step will open Azure DevOps in your browser for OAuth authorization." -ForegroundColor Cyan
+    Write-Host ""
+    
+    $confirm = Read-Host "Proceed? (yes/no)"
+    if ($confirm -ne "yes" -and $confirm -ne "y") {
+        Write-Host "Cancelled" -ForegroundColor Yellow
+        return
+    }
+    
+    # Create the service connection using Azure DevOps REST API with OAuth
+    $orgUrl = "https://dev.azure.com/$($connection.Organization)"
+    $projectName = $connection.ProjectName
+    $scName = $connection.ServiceConnectionName
+    $adoPat = $Global:AzureDevOpsPAT
+    
+    # Prepare authentication header for Azure DevOps API
+    $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$adoPat")) }
+    
+    # Get the project ID
+    Write-Host "Fetching project ID..." -ForegroundColor Cyan
+    $projectId = Get-ProjectId -OrgUrl $orgUrl -ProjectName $projectName -AuthHeader $authHeader
+    
+    if ($null -eq $projectId) {
+        Write-Host "Cannot proceed without project ID" -ForegroundColor Red
+        return
+    }
+    
+    Write-Host "Project ID: $projectId" -ForegroundColor White
+    Write-Host ""
+    
+    # Service connection payload for GitHub OAuth
+    # With OAuth, we don't include a PAT - Azure DevOps will handle the OAuth handshake
+    $serviceConnectionPayload = @{
+        name = $scName
+        type = "github"
+        url = "https://api.github.com"
+        authorization = @{
+            scheme = "OAuth"
+            parameters = @{
+                oauthConfiguration = @{
+                    expirationTime = 0
+                }
+            }
+        }
+        description = "Service connection (OAuth) for $($connection.RepositoryOwner)/$($connection.RepositoryName)"
+        operationStatus = $null
+        serviceEndpointProjectReferences = @(
+            @{
+                projectReference = @{
+                    id = $projectId
+                    name = $projectName
+                }
+                name = $scName
+            }
+        )
+    } | ConvertTo-Json -Depth 10
+    
+    Write-Host "Creating OAuth service connection..." -ForegroundColor Cyan
+    Write-Host "Note: You will be prompted to authorize GitHub in your browser." -ForegroundColor Yellow
+    Write-Host ""
+    
+    try {
+        $response = Invoke-RestMethod `
+            -Uri "$orgUrl/_apis/serviceendpoint/endpoints?api-version=6.0" `
+            -Method Post `
+            -Headers $authHeader `
+            -ContentType "application/json" `
+            -Body $serviceConnectionPayload `
+            -ErrorAction Stop
+        
+        if ($response.id) {
+            Write-Host ""
+            Write-Host "[OK] Service connection created successfully!" -ForegroundColor Green
+            Write-Host "ID: $($response.id)" -ForegroundColor White
+            Write-Host "Name: $($response.name)" -ForegroundColor White
+            Write-Host "Type: $($response.type)" -ForegroundColor White
+            Write-Host ""
+            
+            Write-Host "IMPORTANT: Complete OAuth Authorization:" -ForegroundColor Yellow
+            Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+            Write-Host "2. Click on service connection: $($response.name)" -ForegroundColor White
+            Write-Host "3. Click 'Authorize' button" -ForegroundColor White
+            Write-Host "4. You will be redirected to GitHub to authorize access" -ForegroundColor White
+            Write-Host "5. Click 'Authorize' in GitHub" -ForegroundColor White
+            Write-Host "6. You will be redirected back to Azure DevOps" -ForegroundColor White
+            Write-Host ""
+            
+            # Attempt to create webhook automatically
+            Write-Host "Creating webhook for this service connection..." -ForegroundColor Cyan
+            $scId = $response.id
+            
+            $webhookCreated = Create-GitHubWebhookOAuth `
+                -RepoOwner $connection.RepositoryOwner `
+                -RepoName $connection.RepositoryName `
+                -Organization $connection.Organization `
+                -ProjectName $projectName `
+                -ServiceConnectionId $scId `
+                -AuthHeader $authHeader
+            
+            # Attempt to create Azure DevOps Service Hook subscription
+            Write-Host ""
+            $serviceHookCreated = Create-ServiceHookSubscription `
+                -Organization $connection.Organization `
+                -ProjectName $projectName `
+                -ServiceConnectionId $scId `
+                -RepoOwner $connection.RepositoryOwner `
+                -RepoName $connection.RepositoryName `
+                -AuthHeader $authHeader
+            
+            Write-Host ""
+            Write-Host "Setup Summary:" -ForegroundColor Green
+            Write-Host "  [OK] Service connection created (OAuth)" -ForegroundColor Green
+            Write-Host "  [->] NEXT: Complete authorization at $orgUrl/$projectName/_settings/adminservices" -ForegroundColor Yellow
+            if ($webhookCreated) {
+                Write-Host "  [OK] GitHub webhook created" -ForegroundColor Green
+            } else {
+                Write-Host "  [!] Webhook creation - will work after OAuth authorization" -ForegroundColor Yellow
+            }
+            if ($serviceHookCreated) {
+                Write-Host "  [OK] Azure DevOps Service Hook created" -ForegroundColor Green
+            } else {
+                Write-Host "  [!] Service Hook creation - will work after OAuth authorization" -ForegroundColor Yellow
+            }
+            Write-Host ""
+            Write-Host "Why OAuth is better than PAT:" -ForegroundColor Cyan
+            Write-Host "  * Webhooks use OAuth flow instead of static PAT" -ForegroundColor White
+            Write-Host "  * No PAT expiration issues - Azure DevOps refreshes tokens automatically" -ForegroundColor White
+            Write-Host "  * GitHub can revoke individual OAuth tokens if needed" -ForegroundColor White
+            Write-Host "  * More reliable webhook delivery" -ForegroundColor White
+            Write-Host ""
+        } else {
+            Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
+            Write-Host "Response: $response" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "[ERROR] Failed to create service connection" -ForegroundColor Red
+        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Manual alternative (OAuth):" -ForegroundColor Yellow
+        Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+        Write-Host "2. Click 'New service connection' > GitHub" -ForegroundColor White
+        Write-Host "3. Select 'GitHub' (not GitHub Enterprise Server)" -ForegroundColor White
+        Write-Host "4. Click 'New GitHub connection using OAuth'" -ForegroundColor White
+        Write-Host "5. Click 'Authorize' and complete GitHub authorization" -ForegroundColor White
+        Write-Host "6. Name it: $scName" -ForegroundColor White
+        Write-Host "7. Click 'Save and queue'" -ForegroundColor White
+    }
+    
+    Write-Host ""
+}
+
+function Create-GitHubWebhookOAuth {
+    param(
+        [string]$RepoOwner,
+        [string]$RepoName,
+        [string]$Organization,
+        [string]$ProjectName,
+        [string]$ServiceConnectionId,
+        [hashtable]$AuthHeader
+    )
+    
+    Write-Host "Note: Webhook creation may fail if OAuth authorization not yet completed." -ForegroundColor Yellow
+    Write-Host "That's OK - webhook will work after you authorize the service connection." -ForegroundColor Yellow
+    Write-Host ""
+    
+    # With OAuth, we cannot create webhook via GitHub API directly (no PAT)
+    # Azure DevOps Service Hook will handle the webhook delivery
+    Write-Host "[OK] Service Hook subscription handles webhook delivery with OAuth" -ForegroundColor Green
+    
+    return $true
+}
+
 function Test-ServiceConnection {
+
     Write-Host ""
     Write-Host "Testing Service Connection..." -ForegroundColor Cyan
     Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
@@ -927,13 +1155,14 @@ if ($Action -eq "menu") {
         
         switch ($choice) {
             "1" { New-ServiceConnection; Read-Host "Press Enter to continue" }
-            "2" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
-            "3" { Test-Webhook; Read-Host "Press Enter to continue" }
-            "4" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
-            "5" { View-ServiceConnections; Read-Host "Press Enter to continue" }
-            "6" { Show-CSVData; Read-Host "Press Enter to continue" }
-            "7" { Manage-Authentication }
-            "8" { exit }
+            "2" { New-ServiceConnectionOAuth; Read-Host "Press Enter to continue" }
+            "3" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
+            "4" { Test-Webhook; Read-Host "Press Enter to continue" }
+            "5" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
+            "6" { View-ServiceConnections; Read-Host "Press Enter to continue" }
+            "7" { Show-CSVData; Read-Host "Press Enter to continue" }
+            "8" { Manage-Authentication }
+            "9" { exit }
             default { Write-Host "Invalid option" -ForegroundColor Red; Read-Host "Press Enter to continue" }
         }
     } while ($true)

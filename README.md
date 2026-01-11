@@ -113,16 +113,33 @@ The script will:
 
 ## Helper Script Menu Options
 
-### 1. Create Service Connection (FULLY AUTOMATED)
-**Complete end-to-end setup:**
+### 1. Create Service Connection (PAT-based)
+**Use GitHub Personal Access Token for authentication:**
 - Creates service connection via Azure DevOps REST API
+- Stores GitHub PAT encrypted in Azure DevOps vault
 - Creates GitHub webhook automatically  
 - Creates Service Hook subscription automatically
-- **Validates service connection type** - detects GitHub vs GitHub Enterprise Server issues
-- Multiple connections support - menu to select which to create
-- Shows detailed creation results with IDs
+- **Good for**: Quick setup, testing, automation scripts
+- **Limitation**: Webhooks may fail if PAT expires or scopes change
 
-### 2. Validate Service Connection (AUTOMATED)
+### 2. Create Service Connection (OAuth-based) **[RECOMMENDED]**
+**Use OAuth for more reliable authentication:**
+- Creates service connection that uses GitHub OAuth flow
+- **Azure DevOps handles token refresh automatically**
+- More reliable webhook delivery (no PAT expiration issues)
+- Creates Service Hook subscription automatically
+- Requires manual OAuth authorization step in browser
+- **Good for**: Production environments, long-term reliability
+- **Advantage**: Webhooks work even if GitHub PAT expires
+
+**Why choose OAuth over PAT?**
+- OAuth tokens are managed by Azure DevOps automatically
+- No PAT expiration causing webhook failures
+- GitHub can revoke individual OAuth apps without affecting others
+- More secure - no static token in Azure DevOps vault
+- Webhooks have better reliability
+
+### 3. Validate Service Connection
 **Automatic validation with Azure CLI:**
 - Runs validation automatically if Azure CLI installed
 - Shows service connection details in table format
@@ -130,33 +147,31 @@ The script will:
 - Multiple connections support - menu to select which to test
 - Manual fallback command provided if Azure CLI not available
 
-### 3. Test GitHub Webhook
+### 4. Test GitHub Webhook
 - Instructions for verifying webhook in GitHub
 - Multiple repositories support - menu to select
 - Direct links to GitHub webhook settings page
 
-### 4. Create Webhook Only (for Existing Service Connections) **[NEW]**
+### 5. Create Webhook Only (for Existing Service Connections)
 **Setup webhooks without creating service connection:**
 - **Use this if you already created service connection manually via OAuth**
 - Finds your existing service connection automatically
 - Creates GitHub webhook to the existing service connection
 - Creates Service Hook subscription automatically
-- Perfect for: Manual OAuth setup that needs webhook automation
-- Multiple repositories support - menu to select
-- Shows creation results and next steps
+- Perfect for: Already have OAuth service connection, just missing webhooks
 
-### 5. View Service Connections
+### 6. View Service Connections
 - Links to Azure DevOps service connections settings
 - Links to service hooks page
 - Multiple projects support - menu to select
 
-### 6. View CSV Data
+### 7. View CSV Data
 - Displays all configured service connections from CSV
 - Formatted table view for easy review
 - No authentication required
 
-### 7. Manage Authentication
-- Add/update GitHub PAT anytime
+### 8. Manage Authentication
+- Add/update GitHub PAT anytime (for Option 1 - PAT-based)
 - Add/update Azure DevOps PAT anytime
 - Clear individual or all PATs
 - View current authentication status
@@ -165,9 +180,32 @@ The script will:
 
 ## Authentication & Security
 
+### PAT vs OAuth Comparison
+
+| Feature | PAT (Option 1) | OAuth (Option 2) |
+|---------|---|---|
+| **Setup Complexity** | Simple | Requires browser authorization |
+| **Webhook Reliability** | Can fail if PAT expires | Always works - Azure DevOps refreshes tokens |
+| **Token Expiration** | Yes - PAT must be regenerated every 90 days | No - Azure DevOps manages token refresh |
+| **GitHub Interaction** | Webhooks use static PAT token | Webhooks use OAuth flow |
+| **Best For** | Quick testing, development | Production, long-term reliability |
+| **Failure Risk** | Higher - PAT expiration causes 401 errors | Lower - Azure DevOps handles refresh |
+
+**The Problem with PAT Webhooks:**
+- GitHub webhook delivery fails when GitHub PAT expires
+- Shows error: "Last delivery was not successful. Invalid HTTP Response: 401"
+- Must manually regenerate PAT and update service connection
+- Not suitable for hands-off production environments
+
+**The Solution with OAuth:**
+- Azure DevOps automatically refreshes OAuth tokens
+- Webhooks continue working indefinitely
+- No manual intervention needed
+- Recommended for production use
+
 ### How PATs Are Handled
 
-✓ **Secure:**
+✓ **Secure (Option 1 only):**
 - Entered via masked password prompts
 - Stored in PowerShell session memory only
 - Never logged or displayed on screen
@@ -181,8 +219,11 @@ The script will:
 
 ### Best Practices
 
-1. **Generate temporary PATs** - Set expiration dates
-2. **Use minimal scopes** - Only grant necessary permissions
+1. **For Production**: Use Option 2 (OAuth) - more reliable
+2. **For Testing**: Use Option 1 (PAT) - simpler setup
+3. **If using PAT**: Set expiration dates and rotate every 90 days
+4. **Scopes**: Only grant necessary permissions
+
 3. **Regenerate regularly** - Rotate credentials every 90 days
 4. **Never commit PATs** - They're not stored here, but watch all files
 
@@ -205,6 +246,30 @@ git-AzDo,OtherProject,other-repo,my-org,github-conn-2,Created,Already configured
 
 ## Troubleshooting
 
+### Webhook Returns 401 Error
+
+**Root Cause:** PAT (Personal Access Token) has expired
+
+**Symptoms:**
+- Webhook created but shows 401 (Unauthorized) errors
+- "Last delivery was not successful. Invalid HTTP Response: 401"
+- Webhooks worked before but now fail
+
+**Why This Happens:**
+- Option 1 (PAT-based) stores a GitHub PAT in the service connection
+- GitHub PATs expire (usually 90 days)
+- When PAT expires, webhook deliveries fail with 401 errors
+
+**Fix:**
+1. **Recommended**: Use Option 2 (OAuth) instead - no expiration issues
+2. **Quick Fix**: Regenerate GitHub PAT and update service connection
+   - Create new GitHub PAT
+   - Go to Azure DevOps Project Settings > Service Connections
+   - Edit the service connection
+   - Update the PAT with the new one
+
+---
+
 ### Webhook Returns 404 Error
 
 **Root Cause:** Wrong service connection type selected
@@ -221,12 +286,14 @@ git-AzDo,OtherProject,other-repo,my-org,github-conn-2,Created,Already configured
 **The Script Now Detects This:**
 - After creation, validates service connection type
 - Shows warning if type is not 'github'
-- Validation tool (Option 2) also checks type
+- Validation tool (Option 3) also checks type
 
 **Fix:**
 1. Delete the incorrect service connection
 2. Create new one selecting **'GitHub'** (NOT 'GitHub Enterprise Server')
 3. Re-run script to create webhook and service hook
+
+---
 
 ### Service Connection Creation Failed
 
@@ -247,6 +314,25 @@ git-AzDo,OtherProject,other-repo,my-org,github-conn-2,Created,Already configured
 2. Pipeline configured to use GitHub as source repository
 3. Branch filters match your push branches
 4. Review Service Hooks at: `https://dev.azure.com/ORG/PROJECT/_settings/serviceHooks`
+
+---
+
+### OAuth Service Connection Not Working
+
+**If using Option 2 (OAuth):**
+
+1. **Complete OAuth Authorization**
+   - Service connection created but needs authorization
+   - Go to: `https://dev.azure.com/ORG/PROJECT/_settings/adminservices`
+   - Click on your service connection
+   - Click "Authorize" button
+   - GitHub will ask for permission - click "Authorize"
+   - You'll be redirected back to Azure DevOps
+
+2. **After Authorization**
+   - Webhooks will start working automatically
+   - Service Hook will trigger pipelines on code push
+   - No PAT expiration issues
 
 ### Multiple Connections - Selection Issues
 
