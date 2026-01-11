@@ -173,42 +173,63 @@ function Create-GitHubWebhook {
         [string]$RepoName,
         [string]$GitHubPAT,
         [string]$Organization,
-        [string]$ProjectName
+        [string]$ProjectName,
+        [string]$ServiceConnectionId,
+        [hashtable]$AuthHeader
     )
     
     Write-Host ""
-    Write-Host "Setting up GitHub webhook..." -ForegroundColor Cyan
+    Write-Host "Setting up GitHub webhook via Azure DevOps..." -ForegroundColor Cyan
     
-    # GitHub API headers
-    $githubHeaders = @{
-        Authorization = "token $GitHubPAT"
-        Accept = "application/vnd.github.v3+json"
-    }
+    $orgUrl = "https://dev.azure.com/$Organization"
     
-    # Webhook payload
+    # Create webhook via Azure DevOps API
     $webhookPayload = @{
-        name = "web"
-        active = $true
-        events = @("push", "pull_request")
-        config = @{
-            url = "https://dev.azure.com/$Organization/_apis/public/repos/github/webhooks"
-            content_type = "json"
-            insecure_ssl = "0"
+        name = "Azure DevOps - $ProjectName"
+        url = "$orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=5.0"
+        resourceVersion = "1.0"
+        type = "Job"
+        basicAuthConfiguration = @{
+            username = ""
+            password = ""
         }
-    } | ConvertTo-Json
+        events = @("push", "pullrequest")
+        scope = "$RepoOwner/$RepoName"
+        consumerId = "azureDevOpsServer"
+        consumerActionId = "httpRequest"
+    } | ConvertTo-Json -Depth 10
     
     try {
+        # First, create the webhook via GitHub API with a more direct approach
+        $githubHeaders = @{
+            Authorization = "token $GitHubPAT"
+            Accept = "application/vnd.github.v3+json"
+        }
+        
+        $githubWebhookPayload = @{
+            name = "web"
+            active = $true
+            events = @("push", "pull_request")
+            config = @{
+                url = "$orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=6.0-preview"
+                content_type = "json"
+                insecure_ssl = "0"
+            }
+        } | ConvertTo-Json
+        
         $response = Invoke-RestMethod `
             -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/hooks" `
             -Method Post `
             -Headers $githubHeaders `
             -ContentType "application/json" `
-            -Body $webhookPayload `
+            -Body $githubWebhookPayload `
             -ErrorAction Stop
         
         Write-Host "[OK] GitHub webhook created successfully!" -ForegroundColor Green
         Write-Host "Webhook ID: $($response.id)" -ForegroundColor White
         Write-Host "URL: $($response.config.url)" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Note: Test the webhook by pushing code to the repository" -ForegroundColor Yellow
         return $true
     } catch {
         $errorMessage = $_.Exception.Message
@@ -216,8 +237,16 @@ function Create-GitHubWebhook {
             Write-Host "[!] Webhook already exists for this repository" -ForegroundColor Yellow
             return $true
         } else {
-            Write-Host "[ERROR] Failed to create GitHub webhook" -ForegroundColor Red
-            Write-Host "Error: $_" -ForegroundColor Red
+            Write-Host "[WARNING] Failed to create GitHub webhook automatically" -ForegroundColor Yellow
+            Write-Host "Error: $_" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Manual setup required:" -ForegroundColor Yellow
+            Write-Host "1. Go to: https://github.com/$RepoOwner/$RepoName/settings/hooks" -ForegroundColor White
+            Write-Host "2. Click 'Add webhook'" -ForegroundColor White
+            Write-Host "3. Payload URL: $orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=6.0-preview" -ForegroundColor White
+            Write-Host "4. Content type: application/json" -ForegroundColor White
+            Write-Host "5. Events: Let me select individual events > Push events, Pull requests" -ForegroundColor White
+            Write-Host "6. Click 'Add webhook'" -ForegroundColor White
             return $false
         }
     }
@@ -350,7 +379,9 @@ function New-ServiceConnection {
                 -RepoName $connection.RepositoryName `
                 -GitHubPAT $githubPat `
                 -Organization $connection.Organization `
-                -ProjectName $projectName
+                -ProjectName $projectName `
+                -ServiceConnectionId $response.id `
+                -AuthHeader $authHeader
             
             Write-Host ""
             Write-Host "Next steps:" -ForegroundColor Cyan
