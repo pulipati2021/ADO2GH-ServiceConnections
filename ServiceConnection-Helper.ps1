@@ -189,33 +189,105 @@ function Test-ServiceConnection {
     
     if (-not $Global:AzureDevOpsPAT) {
         Write-Host "WARNING: Azure DevOps PAT not provided" -ForegroundColor Yellow
-        Write-Host "You may not be able to query service connections" -ForegroundColor Yellow
+        Write-Host "You will need to run commands manually" -ForegroundColor Yellow
     }
     
     $data = Read-ServiceConnectionCSV
     if ($null -eq $data) { return }
     
+    # Handle both single connection and array of connections
     if ($data -is [System.Array]) {
-        $connection = $data[0]
+        $connections = $data
     } else {
-        $connection = $data
+        $connections = @($data)
     }
     
-    $org = Read-Host "Enter Organization (or press Enter for '$($connection.Organization)')"
-    if ([string]::IsNullOrEmpty($org)) { $org = $connection.Organization }
-    
-    $project = Read-Host "Enter Project (or press Enter for '$($connection.ProjectName)')"
-    if ([string]::IsNullOrEmpty($project)) { $project = $connection.ProjectName }
-    
-    $scName = Read-Host "Enter Service Connection Name (or press Enter for '$($connection.ServiceConnectionName)')"
-    if ([string]::IsNullOrEmpty($scName)) { $scName = $connection.ServiceConnectionName }
+    # If multiple connections, ask which one to test
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple service connections found:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].ServiceConnectionName) ($($connections[$i].Organization)/$($connections[$i].ProjectName))"
+        }
+        Write-Host ""
+        
+        $selection = Read-Host "Select connection to test (1-$($connections.Count))"
+        $index = [int]$selection - 1
+        
+        if ($index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Invalid selection" -ForegroundColor Red
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
     
     Write-Host ""
-    Write-Host "Test Command:" -ForegroundColor Yellow
-    Write-Host "az devops service-endpoint list --organization https://dev.azure.com/$org --project $project --query ""[?name=='$scName']"" -o json" -ForegroundColor White
+    Write-Host "Testing: $($connection.ServiceConnectionName)" -ForegroundColor Yellow
+    Write-Host "Organization: $($connection.Organization)" -ForegroundColor White
+    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
     Write-Host ""
-    Write-Host "Run this command in Azure CLI to verify the service connection exists" -ForegroundColor Green
+    
+    # If Azure CLI is available and PAT is provided, try to run the command
+    if ($Global:AzureDevOpsPAT) {
+        $cliAvailable = $null -ne (Get-Command az -ErrorAction SilentlyContinue)
+        
+        if ($cliAvailable) {
+            Write-Host "Running validation via Azure CLI..." -ForegroundColor Cyan
+            Write-Host ""
+            
+            $env:AZURE_DEVOPS_EXT_PAT = $Global:AzureDevOpsPAT
+            
+            try {
+                $result = az devops service-endpoint list `
+                    --organization "https://dev.azure.com/$($connection.Organization)" `
+                    --project "$($connection.ProjectName)" `
+                    --query "[?name=='$($connection.ServiceConnectionName)']" `
+                    -o json 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    $endpoints = $result | ConvertFrom-Json
+                    if ($endpoints.Count -gt 0) {
+                        Write-Host "[OK] Service connection FOUND!" -ForegroundColor Green
+                        Write-Host ""
+                        $endpoints | Format-Table -Property @{Name="Name"; Expression={$_.name}}, @{Name="Type"; Expression={$_.type}}, @{Name="URL"; Expression={$_.url}} -AutoSize
+                    } else {
+                        Write-Host "[!] Service connection NOT FOUND" -ForegroundColor Yellow
+                        Write-Host "Service connection '$($connection.ServiceConnectionName)' does not exist in the project" -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "[ERROR] Azure CLI command failed" -ForegroundColor Red
+                    Write-Host "Output: $result" -ForegroundColor Red
+                }
+            } catch {
+                Write-Host "[ERROR] Exception occurred: $_" -ForegroundColor Red
+            } finally {
+                Remove-Item env:AZURE_DEVOPS_EXT_PAT -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-Host "[!] Azure CLI not found. Install with: choco install azure-cli" -ForegroundColor Yellow
+            Write-Host ""
+            Display-TestCommand $connection
+        }
+    } else {
+        Write-Host "Provide the test command to run manually:" -ForegroundColor Yellow
+        Write-Host ""
+        Display-TestCommand $connection
+    }
+    
     Write-Host ""
+}
+
+function Display-TestCommand {
+    param([object]$connection)
+    
+    Write-Host "az devops service-endpoint list \" -ForegroundColor White
+    Write-Host "  --organization https://dev.azure.com/$($connection.Organization) \" -ForegroundColor White
+    Write-Host "  --project $($connection.ProjectName) \" -ForegroundColor White
+    Write-Host "  --query ""[?name=='$($connection.ServiceConnectionName)']"" \" -ForegroundColor White
+    Write-Host "  -o json" -ForegroundColor White
 }
 
 function Test-Webhook {
@@ -231,12 +303,37 @@ function Test-Webhook {
     $data = Read-ServiceConnectionCSV
     if ($null -eq $data) { return }
     
+    # Handle both single connection and array of connections
     if ($data -is [System.Array]) {
-        $connection = $data[0]
+        $connections = $data
     } else {
-        $connection = $data
+        $connections = @($data)
     }
     
+    # If multiple connections, ask which one to check
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple repositories found:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].RepositoryOwner)/$($connections[$i].RepositoryName)"
+        }
+        Write-Host ""
+        
+        $selection = Read-Host "Select repository to check webhook (1-$($connections.Count))"
+        $index = [int]$selection - 1
+        
+        if ($index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Invalid selection" -ForegroundColor Red
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
+    
+    Write-Host ""
+    Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "To verify webhook was created:" -ForegroundColor Yellow
     Write-Host "1. Go to GitHub: https://github.com/$($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor White
@@ -255,18 +352,48 @@ function View-ServiceConnections {
     $data = Read-ServiceConnectionCSV
     if ($null -eq $data) { return }
     
+    # Handle both single connection and array of connections
     if ($data -is [System.Array]) {
-        $connection = $data[0]
+        $connections = $data
     } else {
-        $connection = $data
+        $connections = @($data)
+    }
+    
+    # If multiple connections, ask which project
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple projects found:" -ForegroundColor Yellow
+        Write-Host ""
+        
+        $uniqueProjects = $connections | Select-Object -Property Organization, ProjectName -Unique
+        
+        for ($i = 0; $i -lt $uniqueProjects.Count; $i++) {
+            Write-Host "$($i + 1). $($uniqueProjects[$i].Organization)/$($uniqueProjects[$i].ProjectName)"
+        }
+        Write-Host ""
+        
+        $selection = Read-Host "Select project to view (1-$($uniqueProjects.Count))"
+        $index = [int]$selection - 1
+        
+        if ($index -lt 0 -or $index -ge $uniqueProjects.Count) {
+            Write-Host "Invalid selection" -ForegroundColor Red
+            return
+        }
+        $selectedProject = $uniqueProjects[$index]
+        $org = $selectedProject.Organization
+        $project = $selectedProject.ProjectName
+    } else {
+        $connection = $connections[0]
+        $org = $connection.Organization
+        $project = $connection.ProjectName
     }
     
     Write-Host ""
-    Write-Host "Open this URL in your browser:" -ForegroundColor Yellow
-    Write-Host "https://dev.azure.com/$($connection.Organization)/$($connection.ProjectName)/_settings/adminservices" -ForegroundColor Cyan
+    Write-Host "Azure DevOps Service Connections URL:" -ForegroundColor Yellow
+    Write-Host "https://dev.azure.com/$org/$project/_settings/adminservices" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Or use Azure CLI:" -ForegroundColor Yellow
-    Write-Host "az devops service-endpoint list --organization https://dev.azure.com/$($connection.Organization) --project $($connection.ProjectName)" -ForegroundColor White
+    Write-Host "az devops service-endpoint list --organization https://dev.azure.com/$org --project $project" -ForegroundColor White
     Write-Host ""
 }
 
