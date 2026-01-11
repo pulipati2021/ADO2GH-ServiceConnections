@@ -167,6 +167,62 @@ function Get-ProjectId {
     }
 }
 
+function Create-GitHubWebhook {
+    param(
+        [string]$RepoOwner,
+        [string]$RepoName,
+        [string]$GitHubPAT,
+        [string]$Organization,
+        [string]$ProjectName
+    )
+    
+    Write-Host ""
+    Write-Host "Setting up GitHub webhook..." -ForegroundColor Cyan
+    
+    # GitHub API headers
+    $githubHeaders = @{
+        Authorization = "token $GitHubPAT"
+        Accept = "application/vnd.github.v3+json"
+    }
+    
+    # Webhook payload
+    $webhookPayload = @{
+        name = "web"
+        active = $true
+        events = @("push", "pull_request")
+        config = @{
+            url = "https://dev.azure.com/$Organization/_apis/public/repos/github/webhooks"
+            content_type = "json"
+            insecure_ssl = "0"
+        }
+    } | ConvertTo-Json
+    
+    try {
+        $response = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/hooks" `
+            -Method Post `
+            -Headers $githubHeaders `
+            -ContentType "application/json" `
+            -Body $webhookPayload `
+            -ErrorAction Stop
+        
+        Write-Host "[OK] GitHub webhook created successfully!" -ForegroundColor Green
+        Write-Host "Webhook ID: $($response.id)" -ForegroundColor White
+        Write-Host "URL: $($response.config.url)" -ForegroundColor White
+        return $true
+    } catch {
+        $errorMessage = $_.Exception.Message
+        if ($errorMessage -like "*422*" -or $errorMessage -like "*already exists*") {
+            Write-Host "[!] Webhook already exists for this repository" -ForegroundColor Yellow
+            return $true
+        } else {
+            Write-Host "[ERROR] Failed to create GitHub webhook" -ForegroundColor Red
+            Write-Host "Error: $_" -ForegroundColor Red
+            return $false
+        }
+    }
+}
+
 function New-ServiceConnection {
     Write-Host ""
     Write-Host "Creating Service Connection..." -ForegroundColor Cyan
@@ -287,10 +343,26 @@ function New-ServiceConnection {
             Write-Host "ID: $($response.id)" -ForegroundColor White
             Write-Host "Name: $($response.name)" -ForegroundColor White
             Write-Host ""
+            
+            # Attempt to create webhook automatically
+            $webhookCreated = Create-GitHubWebhook `
+                -RepoOwner $connection.RepositoryOwner `
+                -RepoName $connection.RepositoryName `
+                -GitHubPAT $githubPat `
+                -Organization $connection.Organization `
+                -ProjectName $projectName
+            
+            Write-Host ""
             Write-Host "Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-            Write-Host "2. Verify the service connection appears in the list" -ForegroundColor White
-            Write-Host "3. Update your pipeline YAML to use this service connection" -ForegroundColor White
+            Write-Host "1. Service connection created: $($response.name)" -ForegroundColor White
+            if ($webhookCreated) {
+                Write-Host "2. Webhook created in GitHub repository" -ForegroundColor White
+            } else {
+                Write-Host "2. Webhook creation failed - may need manual setup" -ForegroundColor White
+            }
+            Write-Host "3. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+            Write-Host "4. Verify the service connection and webhook" -ForegroundColor White
+            Write-Host "5. Update your pipeline YAML to use this service connection" -ForegroundColor White
             Write-Host ""
         } else {
             Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
