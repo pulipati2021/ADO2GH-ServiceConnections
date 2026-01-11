@@ -161,12 +161,12 @@ function Invoke-GuidedWorkflow {
     Write-Host "Choose your preferred setup method:" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "A) PAT-Based Setup (Quick, uses GitHub Personal Access Token)" -ForegroundColor Yellow
-    Write-Host "   - Fast: ~2-3 minutes" -ForegroundColor Gray
-    Write-Host "   - Creates service connection + webhooks automatically" -ForegroundColor Gray
+    Write-Host "   - Fast: 2-3 minutes" -ForegroundColor Gray
+    Write-Host "   - Creates service connection plus webhooks automatically" -ForegroundColor Gray
     Write-Host "   - Then updates pipeline YAML" -ForegroundColor Gray
     Write-Host ""
     Write-Host "B) OAuth Setup (RECOMMENDED - Most Reliable)" -ForegroundColor Green
-    Write-Host "   - Takes ~3-4 minutes (includes browser authorization)" -ForegroundColor Gray
+    Write-Host "   - Takes 3-4 minutes (includes browser authorization)" -ForegroundColor Gray
     Write-Host "   - Azure DevOps auto-refreshes tokens (no expiration issues)" -ForegroundColor Gray
     Write-Host "   - Webhooks never fail with 401 errors" -ForegroundColor Gray
     Write-Host ""
@@ -181,113 +181,87 @@ function Invoke-GuidedWorkflow {
             Write-Host ""
             Write-Host "Starting PAT-Based Setup..." -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 1: Create Service Connection with PAT
             New-ServiceConnection
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 1 Complete: Service Connection Created" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 2: Validate
             Write-Host "Validating service connection..." -ForegroundColor Cyan
             Test-ServiceConnection
-            
-            # Step 3: Update Pipeline YAML
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
             Update-PipelineYAMLFiles
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "✓ SETUP COMPLETE!" -ForegroundColor Green
+            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Green
             Write-Host ""
-            Write-Host "Your setup is 100% complete. Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit your pipeline YAML changes: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
-            Write-Host "2. Push to GitHub: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code to GitHub - your pipeline should trigger!" -ForegroundColor White
+            Write-Host "Next steps:" -ForegroundColor Cyan
+            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
+            Write-Host "2. Push: git push" -ForegroundColor White
+            Write-Host "3. Test by pushing code to GitHub" -ForegroundColor White
             Write-Host ""
         }
         "B" {
             Write-Host ""
             Write-Host "Starting OAuth Setup..." -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 1: Create Service Connection with OAuth
             New-ServiceConnectionOAuth
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 1 Complete: Service Connection Created" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 2: Validate
             Write-Host "Validating service connection..." -ForegroundColor Cyan
             Test-ServiceConnection
-            
-            # Step 3: Update Pipeline YAML
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
             Update-PipelineYAMLFiles
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "✓ SETUP COMPLETE!" -ForegroundColor Green
+            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Green
             Write-Host ""
-            Write-Host "Your setup is 100% complete. Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit your pipeline YAML changes: git add azure-pipelines.yml; git commit -m 'Update pipeline for GitHub'" -ForegroundColor White
-            Write-Host "2. Push to GitHub: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code to GitHub - your pipeline should trigger!" -ForegroundColor White
-            Write-Host "4. Webhooks are OAuth-based, so no token expiration issues!" -ForegroundColor Green
+            Write-Host "Next steps:" -ForegroundColor Cyan
+            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
+            Write-Host "2. Push: git push" -ForegroundColor White
+            Write-Host "3. Test by pushing code - OAuth tokens auto-refresh" -ForegroundColor White
             Write-Host ""
         }
         "C" {
             Write-Host ""
             Write-Host "Starting Manual Service Connection Setup..." -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 1: Create Webhook Only
             Create-WebhookOnlyForExisting
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 1 Complete: Webhooks Created" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
-            
-            # Step 2: Validate
             Write-Host "Validating service connection..." -ForegroundColor Cyan
             Test-ServiceConnection
-            
-            # Step 3: Update Pipeline YAML
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
             Write-Host "========================================================" -ForegroundColor Cyan
             Write-Host ""
             Update-PipelineYAMLFiles
-            
             Write-Host ""
             Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "✓ SETUP COMPLETE!" -ForegroundColor Green
+            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
             Write-Host "========================================================" -ForegroundColor Green
             Write-Host ""
-            Write-Host "Your setup is 100% complete. Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit your pipeline YAML changes: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
-            Write-Host "2. Push to GitHub: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code to GitHub - your pipeline should trigger!" -ForegroundColor White
-            Write-Host "4. Webhooks are OAuth-based, so no token expiration issues!" -ForegroundColor Green
+            Write-Host "Next steps:" -ForegroundColor Cyan
+            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
+            Write-Host "2. Push: git push" -ForegroundColor White
+            Write-Host "3. Test by pushing code to GitHub" -ForegroundColor White
             Write-Host ""
         }
         default {
