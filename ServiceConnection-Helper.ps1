@@ -83,30 +83,15 @@ function Initialize-Session {
     Write-Host "   Session Initialization - Authentication Setup" -ForegroundColor Cyan
     Write-Host "=========================================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "This session will need PATs for creating and validating service connections." -ForegroundColor Yellow
+    Write-Host "Provide your credentials (they will remain in memory for this session only):" -ForegroundColor Cyan
     Write-Host ""
     
-    $providePATs = Read-Host "Do you want to provide PATs now? (yes/no)"
+    $Global:GitHubPAT = Get-SecurePAT "GitHub PAT"
+    Write-Host "[OK] GitHub PAT stored in session" -ForegroundColor Green
+    Write-Host ""
     
-    if ($providePATs -eq "yes" -or $providePATs -eq "y") {
-        Write-Host ""
-        Write-Host "Provide your credentials (they will remain in memory for this session only):" -ForegroundColor Cyan
-        Write-Host ""
-        
-        $provideGitHub = Read-Host "Provide GitHub PAT? (yes/no)"
-        if ($provideGitHub -eq "yes" -or $provideGitHub -eq "y") {
-            $Global:GitHubPAT = Get-SecurePAT "GitHub PAT"
-            Write-Host "[OK] GitHub PAT stored in session" -ForegroundColor Green
-        }
-        
-        $provideADO = Read-Host "Provide Azure DevOps PAT? (yes/no)"
-        if ($provideADO -eq "yes" -or $provideADO -eq "y") {
-            $Global:AzureDevOpsPAT = Get-SecurePAT "Azure DevOps PAT"
-            Write-Host "[OK] Azure DevOps PAT stored in session" -ForegroundColor Green
-        }
-    } else {
-        Write-Host "Skipping PAT setup. You can add them later from the menu." -ForegroundColor Yellow
-    }
+    $Global:AzureDevOpsPAT = Get-SecurePAT "Azure DevOps PAT"
+    Write-Host "[OK] Azure DevOps PAT stored in session" -ForegroundColor Green
     
     $Global:SessionInitialized = $true
     Write-Host ""
