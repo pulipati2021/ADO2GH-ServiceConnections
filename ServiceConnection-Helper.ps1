@@ -269,6 +269,75 @@ function Create-GitHubWebhook {
     }
 }
 
+function Create-ServiceHookSubscription {
+    param(
+        [string]$Organization,
+        [string]$ProjectName,
+        [string]$ServiceConnectionId,
+        [string]$RepoOwner,
+        [string]$RepoName,
+        [hashtable]$AuthHeader
+    )
+    
+    Write-Host ""
+    Write-Host "Creating Azure DevOps Service Hook subscription..." -ForegroundColor Cyan
+    
+    $orgUrl = "https://dev.azure.com/$Organization"
+    
+    # Create subscription for GitHub push and pull request events
+    $subscriptionPayload = @{
+        publisherId = "github"
+        eventType = "git.push"
+        resourceVersion = "1.0"
+        consumerId = "azureDevOpsServer"
+        consumerActionId = "workItemStateChangeNotification"
+        scope = "all"
+        channel = "web"
+        detailedMessagesOn = $false
+        status = "active"
+        probationRetries = 0
+        publisherInputs = @{
+            repository = "$RepoOwner/$RepoName"
+            gitHubConnectionId = $ServiceConnectionId
+            branchFilters = @("[*]")
+        }
+        consumerInputs = @{
+            workItemType = "Bug"
+            action = "create"
+            comment = "Created from GitHub event"
+        }
+    } | ConvertTo-Json -Depth 10
+    
+    try {
+        $response = Invoke-RestMethod `
+            -Uri "$orgUrl/$ProjectName/_apis/hooks/subscriptions?api-version=6.0-preview.1" `
+            -Method Post `
+            -Headers $AuthHeader `
+            -ContentType "application/json" `
+            -Body $subscriptionPayload `
+            -ErrorAction Stop
+        
+        Write-Host "[OK] Service Hook subscription created!" -ForegroundColor Green
+        Write-Host "Subscription ID: $($response.id)" -ForegroundColor White
+        Write-Host "Event Type: $($response.eventType)" -ForegroundColor White
+        Write-Host "Status: $($response.status)" -ForegroundColor White
+        return $true
+    } catch {
+        Write-Host "[!] Service Hook subscription creation result:" -ForegroundColor Yellow
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "You can manually create service hook:" -ForegroundColor Yellow
+        Write-Host "1. Go to: $orgUrl/$ProjectName/_settings/serviceHooks" -ForegroundColor White
+        Write-Host "2. Click 'Create subscription'" -ForegroundColor White
+        Write-Host "3. Choose GitHub as the service" -ForegroundColor White
+        Write-Host "4. Select event type (Push, Pull request, etc.)" -ForegroundColor White
+        Write-Host "5. Configure filters for repository: $RepoOwner/$RepoName" -ForegroundColor White
+        Write-Host "6. Set action (e.g., Run pipeline, Create work item)" -ForegroundColor White
+        Write-Host "7. Save the subscription" -ForegroundColor White
+        return $false
+    }
+}
+
 function New-ServiceConnection {
     Write-Host ""
     Write-Host "Creating Service Connection..." -ForegroundColor Cyan
@@ -400,17 +469,32 @@ function New-ServiceConnection {
                 -ServiceConnectionId $response.id `
                 -AuthHeader $authHeader
             
+            # Attempt to create Azure DevOps Service Hook subscription
+            Write-Host ""
+            $serviceHookCreated = Create-ServiceHookSubscription `
+                -Organization $connection.Organization `
+                -ProjectName $projectName `
+                -ServiceConnectionId $response.id `
+                -RepoOwner $connection.RepositoryOwner `
+                -RepoName $connection.RepositoryName `
+                -AuthHeader $authHeader
+            
             Write-Host ""
             Write-Host "Next steps:" -ForegroundColor Cyan
             Write-Host "1. Service connection created: $($response.name)" -ForegroundColor White
             if ($webhookCreated) {
-                Write-Host "2. Webhook created in GitHub repository" -ForegroundColor White
+                Write-Host "2. GitHub webhook created" -ForegroundColor White
             } else {
-                Write-Host "2. Webhook creation failed - may need manual setup" -ForegroundColor White
+                Write-Host "2. GitHub webhook creation failed - may need manual setup" -ForegroundColor White
             }
-            Write-Host "3. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-            Write-Host "4. Verify the service connection and webhook" -ForegroundColor White
-            Write-Host "5. Update your pipeline YAML to use this service connection" -ForegroundColor White
+            if ($serviceHookCreated) {
+                Write-Host "3. Azure DevOps Service Hook created" -ForegroundColor White
+            } else {
+                Write-Host "3. Service Hook creation failed - may need manual setup" -ForegroundColor White
+            }
+            Write-Host "4. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+            Write-Host "5. Verify the service connection and service hooks" -ForegroundColor White
+            Write-Host "6. Update your pipeline YAML to use this service connection" -ForegroundColor White
             Write-Host ""
         } else {
             Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
