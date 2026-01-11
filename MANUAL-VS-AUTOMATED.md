@@ -68,13 +68,49 @@
 
 ---
 
-### Task 5: Handle PAT Renewal (Ongoing)
+### Task 5: Verify & Monitor GitHub Webhooks
+**Why Manual:** You must verify webhooks are created and receiving events  
+**Time:** 3-5 minutes  
+**What Are Webhooks?** When you create a service connection, Azure DevOps automatically creates a webhook in your GitHub repo. This webhook sends push events to Azure DevOps to trigger your pipeline.
+
+**Steps to Verify Webhook:**
+1. Go to GitHub repo: `https://your-github-server/your-org/your-repo`
+2. Click **Settings** → **Webhooks**
+3. You should see an entry like: `https://dev.azure.com/your-org/_apis/public/repos/github/webhooks`
+4. Click on it to expand details
+
+**What to Check:**
+- ✓ Webhook exists (means service connection was set up)
+- ✓ Payload URL shows Azure DevOps endpoint
+- ✓ Events set to: **Just the push event** (or **All events**)
+- ✓ Delivery History shows recent successful deliveries (green checkmarks)
+
+**Troubleshooting Webhook Issues:**
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| **No webhook exists** | Service connection not created | Run setup script again |
+| **Red X in delivery** | 404 Not Found error | GitHub Enterprise Server selected instead of GitHub - DELETE service connection and recreate selecting "GitHub" type |
+| **No deliveries** | Webhook disabled or no pushes | Push code to repo to trigger webhook |
+| **Deliveries fail** | Network/auth issues | Check Azure DevOps PAT hasn't expired |
+
+**How to Delete & Recreate:**
+1. Go to GitHub Settings → Webhooks → Delete the webhook
+2. Go to Azure DevOps Project Settings → Service connections → Delete service connection
+3. Run setup script again (it will recreate both)
+
+**Key Point:** If you see "404" errors in webhook delivery history, this means you selected **GitHub Enterprise Server** type instead of **GitHub** type when creating the service connection. This is a common mistake that must be fixed.
+
+---
+
+### Task 6: Handle PAT Renewal (Ongoing)
 **Why Manual:** PATs expire (usually 90 days)  
 **When:** Before PAT expiration date  
 **Steps:**
-1. Generate new GitHub EMU PAT (Task 1)
+1. Generate new GitHub PAT (Task 1)
 2. Update in Azure DevOps: Project Settings → Service connections → Edit → Update token
 3. Or regenerate service connection using setup script with new PAT
+
+**Note:** If webhook deliveries start showing 401 errors after PAT expires, regenerate service connection with new PAT
 
 ---
 
@@ -198,11 +234,12 @@ Pipeline Name: Migration-testing
 
 | Task | Who/What | Time | Can Repeat? |
 |------|----------|------|------------|
-| **Create GitHub EMU PAT** | Manual (You) | 2 min | Yes (new token each time) |
+| **Create GitHub PAT** | Manual (You) | 2 min | Yes (new token each time) |
 | **Create Azure DevOps PAT** | Manual (You) | 2 min | Yes (new token each time) |
 | **Create Service Connection** | Automated (Script) | 2 min | Yes (overwrites existing) |
 | **Validate Service Connection** | Automated (Script) | 30 sec | Yes (safe to run anytime) |
-| **Validate GitHub Token** | Automated (Script) | 30 sec | Yes (safe to run anytime) |
+| **Verify GitHub Webhooks** | Manual (You) | 3 min | Yes (verify anytime) |
+| **Troubleshoot Webhook Issues** | Manual (You) | 5-10 min | Yes (as needed) |
 | **Connect Pipeline to Repo** | Manual (You) | 5 min | Yes (one per pipeline) |
 | **Test Trigger** | Manual (You) | 5 min | Yes (sanity check) |
 
@@ -212,14 +249,14 @@ Pipeline Name: Migration-testing
 
 | Phase | Task | Time | Manual? |
 |-------|------|------|---------|
-| **Setup** | GitHub EMU PAT | 2 min | ✓ |
+| **Setup** | GitHub PAT | 2 min | ✓ |
 | | Azure DevOps PAT | 2 min | ✓ |
 | | Run setup script | 2 min | ✗ (automated) |
-| | Run validate scripts | 1 min | ✗ (automated) |
+| **Verify** | Verify GitHub webhooks | 3 min | ✓ |
 | **Configure** | Connect pipeline to repo | 5 min | ✓ |
 | **Test** | Push test code | 5 min | ✓ |
 | | Verify trigger | 2 min | ✓ |
-| **TOTAL** | | **21 minutes** | 7 manual + 3 automated |
+| **TOTAL** | | **21 minutes** | 9 manual + 1 automated |
 
 ---
 
@@ -228,21 +265,22 @@ Pipeline Name: Migration-testing
 ```
 MANUAL                          AUTOMATED                    MANUAL
 ┌──────────────┐               ┌──────────────┐            ┌──────────────┐
-│ Create PATs  │── PATs────→   │ Setup Script │──Service──→│ Connect Pipe │
-│ (5 min)      │              │ (2 min)      │  Connection │ (5 min)      │
-└──────────────┘               └──────────────┘            └──────────────┘
-                                    ↓
-                               AUTOMATED
-                               ┌──────────────┐
-                               │ Validate     │
-                               │ (1 min)      │
-                               └──────────────┘
-                                    ↓
-                               MANUAL
-                               ┌──────────────┐
-                               │ Test Trigger │
-                               │ (5 min)      │
-                               └──────────────┘
+│ Create PATs  │── PATs────→   │ Setup Script │──Service──→│ Verify GitHub│
+│ (5 min)      │              │ (2 min)      │  Connection │ Webhooks     │
+└──────────────┘               └──────────────┘  + Webhook │ (3 min)      │
+                                                           └──────────────┘
+                                                                 ↓
+                                                           MANUAL
+                                                           ┌──────────────┐
+                                                           │ Connect Pipe │
+                                                           │ (5 min)      │
+                                                           └──────────────┘
+                                                                 ↓
+                                                           MANUAL
+                                                           ┌──────────────┐
+                                                           │ Test Trigger │
+                                                           │ (5 min)      │
+                                                           └──────────────┘
 ```
 
 ---
@@ -250,20 +288,25 @@ MANUAL                          AUTOMATED                    MANUAL
 ## ✅ Checklist
 
 **Manual - Create Tokens:**
-- [ ] GitHub EMU PAT created and copied
+- [ ] GitHub PAT created and copied
 - [ ] Azure DevOps PAT created and copied
 
 **Automated - Run Scripts:**
-- [ ] Run setup-github-service-connection.ps1
-- [ ] Run validate-service-connection.ps1 (verify OK)
-- [ ] Run validate-github-token.ps1 (verify OK)
+- [ ] Run setup script
+- [ ] Service connection created successfully
+
+**Manual - Verify:**
+- [ ] GitHub webhook exists in repo Settings → Webhooks
+- [ ] Webhook shows successful deliveries (green checkmarks)
+- [ ] No 404 errors in webhook delivery history
+- [ ] If 404 errors: Recreate service connection with "GitHub" type (not "GitHub Enterprise Server")
 
 **Manual - Configure:**
-- [ ] Pipeline connected to GitHub EMU repo
+- [ ] Pipeline connected to GitHub repo
 - [ ] Trigger settings show webhook is enabled
 
 **Manual - Test:**
-- [ ] Pushed test code to GitHub EMU
+- [ ] Pushed test code to GitHub
 - [ ] Pipeline triggered automatically in Azure DevOps
 - [ ] Pipeline ran successfully
 
