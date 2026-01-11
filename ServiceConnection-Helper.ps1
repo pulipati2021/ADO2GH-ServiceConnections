@@ -246,7 +246,7 @@ function Invoke-GuidedWorkflow {
             Write-Host "========================================================" -ForegroundColor Green
             Write-Host ""
             Write-Host "Your setup is 100% complete. Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit your pipeline YAML changes: git add azure-pipelines.yml && git commit -m 'Update pipeline for GitHub'" -ForegroundColor White
+            Write-Host "1. Commit your pipeline YAML changes: git add azure-pipelines.yml; git commit -m 'Update pipeline for GitHub'" -ForegroundColor White
             Write-Host "2. Push to GitHub: git push" -ForegroundColor White
             Write-Host "3. Test by pushing code to GitHub - your pipeline should trigger!" -ForegroundColor White
             Write-Host "4. Webhooks are OAuth-based, so no token expiration issues!" -ForegroundColor Green
@@ -388,7 +388,7 @@ function Create-GitHubWebhook {
                 }
             }
         } catch {
-            Write-Host "[!] Could not verify webhook delivery - will work on next push" -ForegroundColor Yellow
+            Write-Host "[!!] Could not verify webhook delivery - will work on next push" -ForegroundColor Yellow
         }
         
         return $true
@@ -473,12 +473,12 @@ function Create-ServiceHookSubscription {
         Write-Host "Status: $($response.status)" -ForegroundColor White
         return $true
     } catch {
-        Write-Host "[!] Service Hook subscription creation result:" -ForegroundColor Yellow
+        Write-Host "[!!] Service Hook subscription creation result:" -ForegroundColor Yellow
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "You can manually create service hook:" -ForegroundColor Yellow
         Write-Host "1. Go to: $orgUrl/$ProjectName/_settings/serviceHooks" -ForegroundColor White
-        Write-Host "2. Click 'Create subscription'" -ForegroundColor White
+        Write-Host "2. Click Create subscription" -ForegroundColor White
         Write-Host "3. Choose GitHub as the service" -ForegroundColor White
         Write-Host "4. Select event type (Push, Pull request, etc.)" -ForegroundColor White
         Write-Host "5. Configure filters for repository: $RepoOwner/$RepoName" -ForegroundColor White
