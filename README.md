@@ -26,6 +26,7 @@ GitHub (code push)  →  [Service Connection]  →  Azure DevOps (pipelines trig
 | `ServiceConnection-Helper.ps1` | Interactive menu helper script |
 | `SERVICE-CONNECTION-SETUP.md` | Detailed setup documentation |
 | `MANUAL-VS-AUTOMATED.md` | Comparison of manual vs automated approaches |
+| `PIPELINE-CONFIG-GITHUB.md` | How to configure pipelines to use GitHub triggers |
 
 ---
 
@@ -108,6 +109,25 @@ The script will:
 - Need webhooks to trigger pipelines on code push
 - Don't want to recreate service connection
 - Option 4 handles this automatically
+
+---
+
+## Step 4: Configure Pipelines to Use GitHub Triggers
+
+**After creating the service connection**, you must configure your pipelines to use GitHub as the trigger source.
+
+> **Problem:** Pipeline triggers show only `azuregit` (Azure Repos), not GitHub
+
+**Solution:** See [PIPELINE-CONFIG-GITHUB.md](PIPELINE-CONFIG-GITHUB.md) for:
+- How to update pipeline YAML to use GitHub service connection
+- How to configure pipeline triggers via Azure DevOps UI
+- How to verify pipelines trigger on GitHub push
+
+**Quick Summary:**
+- Update `azure-pipelines.yml` to reference your service connection
+- Set trigger repository to your GitHub repo
+- Test by pushing code to GitHub
+- Verify pipeline runs automatically
 
 ---
 
