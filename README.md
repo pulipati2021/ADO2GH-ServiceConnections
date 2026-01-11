@@ -83,7 +83,31 @@ The script will:
 - PATs are stored **in-memory only** for this session
 - They are **never saved** to files
 - They are **cleared** when the script exits
-- You can update PATs anytime via Option 6
+- You can update PATs anytime via Option 7
+
+---
+
+## Two Setup Workflows
+
+### Workflow A: Full Automation (Option 1)
+**If you don't have a service connection yet:**
+- Use Option 1: "Create Service Connection from CSV"
+- Creates service connection + webhook + service hook automatically
+- Best for: Starting fresh
+
+### Workflow B: Webhook-Only (Option 4)
+**If you already created service connection manually (OAuth):**
+- Already created service connection in Azure DevOps UI using OAuth
+- Now need to create webhooks to trigger pipelines
+- Use Option 4: "Create Webhook Only for Existing Service Connections"
+- Script finds your service connection and adds webhooks
+- Best for: Already have OAuth service connection, just missing webhooks
+
+**Why choose Workflow B?**
+- You manually created service connection with OAuth in Azure DevOps UI
+- Need webhooks to trigger pipelines on code push
+- Don't want to recreate service connection
+- Option 4 handles this automatically
 
 ---
 
@@ -111,17 +135,27 @@ The script will:
 - Multiple repositories support - menu to select
 - Direct links to GitHub webhook settings page
 
-### 4. View Service Connections
+### 4. Create Webhook Only (for Existing Service Connections) **[NEW]**
+**Setup webhooks without creating service connection:**
+- **Use this if you already created service connection manually via OAuth**
+- Finds your existing service connection automatically
+- Creates GitHub webhook to the existing service connection
+- Creates Service Hook subscription automatically
+- Perfect for: Manual OAuth setup that needs webhook automation
+- Multiple repositories support - menu to select
+- Shows creation results and next steps
+
+### 5. View Service Connections
 - Links to Azure DevOps service connections settings
 - Links to service hooks page
 - Multiple projects support - menu to select
 
-### 5. View CSV Data
+### 6. View CSV Data
 - Displays all configured service connections from CSV
 - Formatted table view for easy review
 - No authentication required
 
-### 6. Manage Authentication
+### 7. Manage Authentication
 - Add/update GitHub PAT anytime
 - Add/update Azure DevOps PAT anytime
 - Clear individual or all PATs

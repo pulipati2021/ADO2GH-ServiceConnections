@@ -41,10 +41,11 @@ function Show-Menu {
     Write-Host "1. Create Service Connection from CSV" -ForegroundColor Yellow
     Write-Host "2. Validate Service Connection" -ForegroundColor Yellow
     Write-Host "3. Test GitHub Webhook" -ForegroundColor Yellow
-    Write-Host "4. View Service Connections" -ForegroundColor Yellow
-    Write-Host "5. View CSV Data" -ForegroundColor Yellow
-    Write-Host "6. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
-    Write-Host "7. Exit" -ForegroundColor Yellow
+    Write-Host "4. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
+    Write-Host "5. View Service Connections" -ForegroundColor Yellow
+    Write-Host "6. View CSV Data" -ForegroundColor Yellow
+    Write-Host "7. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
+    Write-Host "8. Exit" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
 }
@@ -702,6 +703,166 @@ function Test-Webhook {
     Write-Host ""
 }
 
+function Create-WebhookOnlyForExisting {
+    Write-Host ""
+    Write-Host "Create GitHub Webhook for Existing Service Connection" -ForegroundColor Cyan
+    Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Use this option if you already have a service connection" -ForegroundColor Yellow
+    Write-Host "created manually (OAuth) and only need to create webhooks." -ForegroundColor Yellow
+    Write-Host ""
+    
+    if (-not $Global:GitHubPAT) {
+        Write-Host "ERROR: GitHub PAT not provided!" -ForegroundColor Red
+        Write-Host "Please run option 7 (Manage Authentication) to add GitHub PAT first" -ForegroundColor Yellow
+        return
+    }
+    
+    if (-not $Global:AzureDevOpsPAT) {
+        Write-Host "ERROR: Azure DevOps PAT not provided!" -ForegroundColor Red
+        Write-Host "Please run option 7 (Manage Authentication) to add Azure DevOps PAT first" -ForegroundColor Yellow
+        return
+    }
+    
+    $data = Read-ServiceConnectionCSV
+    if ($null -eq $data) { return }
+    
+    # Handle both single connection and array of connections
+    if ($data -is [System.Array]) {
+        $connections = $data
+    } else {
+        $connections = @($data)
+    }
+    
+    # If multiple connections, ask which one
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple repositories found:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].RepositoryOwner)/$($connections[$i].RepositoryName) (Service Connection: $($connections[$i].ServiceConnectionName))"
+        }
+        Write-Host "$($connections.Count + 1). Cancel"
+        Write-Host ""
+        
+        $selection = Read-Host "Select repository (1-$($connections.Count), or $($connections.Count + 1) to cancel)"
+        $index = [int]$selection - 1
+        
+        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Cancelled" -ForegroundColor Yellow
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
+    
+    Write-Host ""
+    Write-Host "Setting up webhook for: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor Yellow
+    Write-Host "Organization: $($connection.Organization)" -ForegroundColor White
+    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
+    Write-Host "Service Connection: $($connection.ServiceConnectionName)" -ForegroundColor White
+    Write-Host ""
+    
+    # Prepare authentication header for Azure DevOps API
+    $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($Global:AzureDevOpsPAT)")) }
+    
+    # Get the project ID
+    Write-Host "Fetching project ID..." -ForegroundColor Cyan
+    $projectId = Get-ProjectId -OrgUrl "https://dev.azure.com/$($connection.Organization)" -ProjectName $connection.ProjectName -AuthHeader $authHeader
+    
+    if ($null -eq $projectId) {
+        Write-Host "Cannot proceed without project ID" -ForegroundColor Red
+        return
+    }
+    
+    Write-Host "Project ID: $projectId" -ForegroundColor White
+    Write-Host ""
+    
+    # Try to find the existing service connection ID first
+    Write-Host "Looking for existing service connection: $($connection.ServiceConnectionName)..." -ForegroundColor Cyan
+    
+    try {
+        $env:AZURE_DEVOPS_EXT_PAT = $Global:AzureDevOpsPAT
+        $result = az devops service-endpoint list `
+            --organization "https://dev.azure.com/$($connection.Organization)" `
+            --project "$($connection.ProjectName)" `
+            --query "[?name=='$($connection.ServiceConnectionName)']" `
+            -o json 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            $endpoints = $result | ConvertFrom-Json
+            if ($endpoints.Count -gt 0) {
+                $scId = $endpoints[0].id
+                Write-Host "[OK] Found service connection with ID: $scId" -ForegroundColor Green
+                Write-Host ""
+                
+                # Create webhook
+                $webhookCreated = Create-GitHubWebhook `
+                    -RepoOwner $connection.RepositoryOwner `
+                    -RepoName $connection.RepositoryName `
+                    -GitHubPAT $Global:GitHubPAT `
+                    -Organization $connection.Organization `
+                    -ProjectName $connection.ProjectName `
+                    -ServiceConnectionId $scId `
+                    -AuthHeader $authHeader
+                
+                # Create Service Hook
+                Write-Host ""
+                $serviceHookCreated = Create-ServiceHookSubscription `
+                    -Organization $connection.Organization `
+                    -ProjectName $connection.ProjectName `
+                    -ServiceConnectionId $scId `
+                    -RepoOwner $connection.RepositoryOwner `
+                    -RepoName $connection.RepositoryName `
+                    -AuthHeader $authHeader
+                
+                Write-Host ""
+                Write-Host "Webhook setup completed:" -ForegroundColor Green
+                if ($webhookCreated) {
+                    Write-Host "  [OK] GitHub webhook created" -ForegroundColor Green
+                } else {
+                    Write-Host "  [!] GitHub webhook creation failed or already exists" -ForegroundColor Yellow
+                }
+                if ($serviceHookCreated) {
+                    Write-Host "  [OK] Azure DevOps Service Hook created" -ForegroundColor Green
+                } else {
+                    Write-Host "  [!] Service Hook creation failed or already exists" -ForegroundColor Yellow
+                }
+                Write-Host ""
+                Write-Host "Next steps:" -ForegroundColor Cyan
+                Write-Host "1. Verify webhook in GitHub: https://github.com/$($connection.RepositoryOwner)/$($connection.RepositoryName)/settings/hooks" -ForegroundColor White
+                Write-Host "2. Check Recent Deliveries for successful events" -ForegroundColor White
+                Write-Host "3. Test by pushing code to trigger the pipeline" -ForegroundColor White
+                Write-Host ""
+            } else {
+                Write-Host "[ERROR] Service connection '$($connection.ServiceConnectionName)' not found!" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "Make sure:" -ForegroundColor Yellow
+                Write-Host "1. Service connection exists in Azure DevOps" -ForegroundColor White
+                Write-Host "2. Name matches exactly: $($connection.ServiceConnectionName)" -ForegroundColor White
+                Write-Host "3. It's in the correct project: $($connection.ProjectName)" -ForegroundColor White
+                Write-Host ""
+            }
+        } else {
+            Write-Host "[ERROR] Failed to query service connections" -ForegroundColor Red
+            Write-Host "Make sure Azure CLI is installed and configured" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "[ERROR] Exception occurred: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Manual alternative:" -ForegroundColor Yellow
+        Write-Host "1. Copy the service connection ID from Azure DevOps" -ForegroundColor White
+        Write-Host "2. Run this command with the ID:" -ForegroundColor White
+        Write-Host "   `$serviceConnectionId = 'your-service-connection-id'" -ForegroundColor Cyan
+        Write-Host ""
+    } finally {
+        Remove-Item env:AZURE_DEVOPS_EXT_PAT -ErrorAction SilentlyContinue
+    }
+    
+    Write-Host ""
+}
+
 function View-ServiceConnections {
     Write-Host ""
     Write-Host "Viewing Service Connections in Azure DevOps..." -ForegroundColor Cyan
@@ -768,10 +929,11 @@ if ($Action -eq "menu") {
             "1" { New-ServiceConnection; Read-Host "Press Enter to continue" }
             "2" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
             "3" { Test-Webhook; Read-Host "Press Enter to continue" }
-            "4" { View-ServiceConnections; Read-Host "Press Enter to continue" }
-            "5" { Show-CSVData; Read-Host "Press Enter to continue" }
-            "6" { Manage-Authentication }
-            "7" { exit }
+            "4" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
+            "5" { View-ServiceConnections; Read-Host "Press Enter to continue" }
+            "6" { Show-CSVData; Read-Host "Press Enter to continue" }
+            "7" { Manage-Authentication }
+            "8" { exit }
             default { Write-Host "Invalid option" -ForegroundColor Red; Read-Host "Press Enter to continue" }
         }
     } while ($true)
