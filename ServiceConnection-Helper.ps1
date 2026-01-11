@@ -457,7 +457,20 @@ function New-ServiceConnection {
             Write-Host "[OK] Service connection created successfully!" -ForegroundColor Green
             Write-Host "ID: $($response.id)" -ForegroundColor White
             Write-Host "Name: $($response.name)" -ForegroundColor White
+            Write-Host "Type: $($response.type)" -ForegroundColor White
             Write-Host ""
+            
+            # Validate service connection type
+            if ($response.type -ne "github") {
+                Write-Host "[WARNING] Service connection type is '$($response.type)' but should be 'github'" -ForegroundColor Yellow
+                Write-Host "This may cause webhook 404 errors!" -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "Fix:" -ForegroundColor Yellow
+                Write-Host "1. Delete this service connection" -ForegroundColor White
+                Write-Host "2. Ensure you select 'GitHub' (not GitHub Enterprise Server)" -ForegroundColor White
+                Write-Host "3. Create a new service connection" -ForegroundColor White
+                Write-Host ""
+            }
             
             # Attempt to create webhook automatically
             $webhookCreated = Create-GitHubWebhook `
@@ -586,6 +599,16 @@ function Test-ServiceConnection {
                     if ($endpoints.Count -gt 0) {
                         Write-Host "[OK] Service connection FOUND!" -ForegroundColor Green
                         Write-Host ""
+                        
+                        # Check if type is correct
+                        foreach ($ep in $endpoints) {
+                            if ($ep.type -ne "github") {
+                                Write-Host "[WARNING] Service connection type is '$($ep.type)' but should be 'github'" -ForegroundColor Yellow
+                                Write-Host "This may cause webhook 404 errors!" -ForegroundColor Yellow
+                                Write-Host ""
+                            }
+                        }
+                        
                         $endpoints | Format-Table -Property @{Name="Name"; Expression={$_.name}}, @{Name="Type"; Expression={$_.type}}, @{Name="URL"; Expression={$_.url}} -AutoSize
                     } else {
                         Write-Host "[!] Service connection NOT FOUND" -ForegroundColor Yellow
