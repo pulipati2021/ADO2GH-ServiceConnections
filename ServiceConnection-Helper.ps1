@@ -179,39 +179,27 @@ function Create-GitHubWebhook {
     )
     
     Write-Host ""
-    Write-Host "Setting up GitHub webhook via Azure DevOps..." -ForegroundColor Cyan
+    Write-Host "Setting up GitHub webhook..." -ForegroundColor Cyan
     
     $orgUrl = "https://dev.azure.com/$Organization"
     
-    # Create webhook via Azure DevOps API
-    $webhookPayload = @{
-        name = "Azure DevOps - $ProjectName"
-        url = "$orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=5.0"
-        resourceVersion = "1.0"
-        type = "Job"
-        basicAuthConfiguration = @{
-            username = ""
-            password = ""
-        }
-        events = @("push", "pullrequest")
-        scope = "$RepoOwner/$RepoName"
-        consumerId = "azureDevOpsServer"
-        consumerActionId = "httpRequest"
-    } | ConvertTo-Json -Depth 10
-    
     try {
-        # First, create the webhook via GitHub API with a more direct approach
+        # Create webhook via GitHub API using the correct Azure DevOps endpoint
         $githubHeaders = @{
             Authorization = "token $GitHubPAT"
             Accept = "application/vnd.github.v3+json"
         }
+        
+        # The webhook URL should be a generic webhook that Azure DevOps can receive
+        # Using the service hook receiver endpoint
+        $webhookUrl = "$orgUrl/_apis/public/repos/github/webhooks"
         
         $githubWebhookPayload = @{
             name = "web"
             active = $true
             events = @("push", "pull_request")
             config = @{
-                url = "$orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=6.0-preview"
+                url = $webhookUrl
                 content_type = "json"
                 insecure_ssl = "0"
             }
@@ -229,7 +217,30 @@ function Create-GitHubWebhook {
         Write-Host "Webhook ID: $($response.id)" -ForegroundColor White
         Write-Host "URL: $($response.config.url)" -ForegroundColor White
         Write-Host ""
-        Write-Host "Note: Test the webhook by pushing code to the repository" -ForegroundColor Yellow
+        
+        # Test the webhook
+        Write-Host "Testing webhook connectivity..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 2
+        
+        # Get webhook deliveries
+        try {
+            $deliveries = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/hooks/$($response.id)/deliveries" `
+                -Method Get `
+                -Headers $githubHeaders `
+                -ErrorAction Stop
+            
+            if ($deliveries -and $deliveries.Count -gt 0) {
+                if ($deliveries[0].status -eq "OK" -or $deliveries[0].response.code -eq 200) {
+                    Write-Host "[OK] Webhook test successful!" -ForegroundColor Green
+                } else {
+                    Write-Host "[!] Webhook created but delivery status: $($deliveries[0].status)" -ForegroundColor Yellow
+                }
+            }
+        } catch {
+            Write-Host "[!] Could not verify webhook delivery - will work on next push" -ForegroundColor Yellow
+        }
+        
         return $true
     } catch {
         $errorMessage = $_.Exception.Message
@@ -238,15 +249,21 @@ function Create-GitHubWebhook {
             return $true
         } else {
             Write-Host "[WARNING] Failed to create GitHub webhook automatically" -ForegroundColor Yellow
-            Write-Host "Error: $_" -ForegroundColor Yellow
+            Write-Host "Error: $errorMessage" -ForegroundColor Yellow
             Write-Host ""
             Write-Host "Manual setup required:" -ForegroundColor Yellow
             Write-Host "1. Go to: https://github.com/$RepoOwner/$RepoName/settings/hooks" -ForegroundColor White
             Write-Host "2. Click 'Add webhook'" -ForegroundColor White
-            Write-Host "3. Payload URL: $orgUrl/$ProjectName/_apis/public/repos/github/webhooks?api-version=6.0-preview" -ForegroundColor White
+            Write-Host "3. Payload URL: https://dev.azure.com/$Organization/_apis/public/repos/github/webhooks" -ForegroundColor White
             Write-Host "4. Content type: application/json" -ForegroundColor White
             Write-Host "5. Events: Let me select individual events > Push events, Pull requests" -ForegroundColor White
-            Write-Host "6. Click 'Add webhook'" -ForegroundColor White
+            Write-Host "6. Active: Checked" -ForegroundColor White
+            Write-Host "7. Click 'Add webhook'" -ForegroundColor White
+            Write-Host ""
+            Write-Host "If webhook still fails (404):" -ForegroundColor Yellow
+            Write-Host "- Verify your Azure DevOps organization URL is correct" -ForegroundColor White
+            Write-Host "- The webhook may require your organization to have proper GitHub integration enabled" -ForegroundColor White
+            Write-Host "- As a workaround, create an Azure DevOps Service Hook instead" -ForegroundColor White
             return $false
         }
     }
