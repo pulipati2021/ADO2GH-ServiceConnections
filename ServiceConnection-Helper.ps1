@@ -159,26 +159,111 @@ function New-ServiceConnection {
     $data = Read-ServiceConnectionCSV
     if ($null -eq $data) { return }
     
+    # Handle both single connection and array of connections
     if ($data -is [System.Array]) {
-        $connection = $data[0]
+        $connections = $data
     } else {
-        $connection = $data
+        $connections = @($data)
     }
     
-    Write-Host "Organization: $($connection.Organization)" -ForegroundColor Yellow
-    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor Yellow
-    Write-Host "Repository: $($connection.RepositoryName)" -ForegroundColor Yellow
-    Write-Host "Service Connection Name: $($connection.ServiceConnectionName)" -ForegroundColor Yellow
+    # If multiple connections, ask which one to create
+    if ($connections.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Multiple service connections to create:" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $connections.Count; $i++) {
+            Write-Host "$($i + 1). $($connections[$i].ServiceConnectionName) in $($connections[$i].Organization)/$($connections[$i].ProjectName)"
+        }
+        Write-Host ""
+        
+        $selection = Read-Host "Select connection to create (1-$($connections.Count))"
+        $index = [int]$selection - 1
+        
+        if ($index -lt 0 -or $index -ge $connections.Count) {
+            Write-Host "Invalid selection" -ForegroundColor Red
+            return
+        }
+        $connection = $connections[$index]
+    } else {
+        $connection = $connections[0]
+    }
+    
     Write-Host ""
-    Write-Host "Credentials loaded from session" -ForegroundColor Green
+    Write-Host "Creating: $($connection.ServiceConnectionName)" -ForegroundColor Yellow
+    Write-Host "Organization: $($connection.Organization)" -ForegroundColor White
+    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
+    Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor White
     Write-Host ""
-    Write-Host "Next Steps:" -ForegroundColor Cyan
-    Write-Host "1. Log in to Azure DevOps: https://dev.azure.com/$($connection.Organization)/$($connection.ProjectName)" -ForegroundColor White
-    Write-Host "2. Go to Project Settings > Service Connections" -ForegroundColor White
-    Write-Host "3. Click 'New service connection' > GitHub" -ForegroundColor White
-    Write-Host "4. Select 'Personal access token (PAT)'" -ForegroundColor White
-    Write-Host "5. Fill in your GitHub PAT and service connection name: $($connection.ServiceConnectionName)" -ForegroundColor White
-    Write-Host "6. Click 'Save'" -ForegroundColor White
+    
+    $confirm = Read-Host "Proceed with creation? (yes/no)"
+    if ($confirm -ne "yes" -and $confirm -ne "y") {
+        Write-Host "Cancelled" -ForegroundColor Yellow
+        return
+    }
+    
+    # Create the service connection using Azure DevOps REST API
+    $orgUrl = "https://dev.azure.com/$($connection.Organization)"
+    $projectName = $connection.ProjectName
+    $scName = $connection.ServiceConnectionName
+    $githubPat = $Global:GitHubPAT
+    $adoPat = $Global:AzureDevOpsPAT
+    
+    # Prepare authentication header for Azure DevOps API
+    $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$adoPat")) }
+    
+    # Service connection payload for GitHub
+    $serviceConnectionPayload = @{
+        name = $scName
+        type = "github"
+        url = "https://api.github.com"
+        authorization = @{
+            scheme = "PersonalAccessToken"
+            parameters = @{
+                accessToken = $githubPat
+            }
+        }
+        description = "Service connection for $($connection.RepositoryOwner)/$($connection.RepositoryName)"
+        operationStatus = $null
+    } | ConvertTo-Json
+    
+    Write-Host "Sending request to Azure DevOps API..." -ForegroundColor Cyan
+    
+    try {
+        $response = Invoke-RestMethod `
+            -Uri "$orgUrl/_apis/serviceendpoint/endpoints?api-version=6.0" `
+            -Method Post `
+            -Headers $authHeader `
+            -ContentType "application/json" `
+            -Body $serviceConnectionPayload `
+            -ErrorAction Stop
+        
+        if ($response.id) {
+            Write-Host ""
+            Write-Host "[OK] Service connection created successfully!" -ForegroundColor Green
+            Write-Host "ID: $($response.id)" -ForegroundColor White
+            Write-Host "Name: $($response.name)" -ForegroundColor White
+            Write-Host ""
+            Write-Host "Next steps:" -ForegroundColor Cyan
+            Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+            Write-Host "2. Verify the service connection appears in the list" -ForegroundColor White
+            Write-Host "3. Update your pipeline YAML to use this service connection" -ForegroundColor White
+            Write-Host ""
+        } else {
+            Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
+            Write-Host "Response: $response" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "[ERROR] Failed to create service connection" -ForegroundColor Red
+        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Manual alternative:" -ForegroundColor Yellow
+        Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
+        Write-Host "2. Click 'New service connection' > GitHub" -ForegroundColor White
+        Write-Host "3. Select 'Personal access token (PAT)'" -ForegroundColor White
+        Write-Host "4. Paste your GitHub PAT and name it: $scName" -ForegroundColor White
+        Write-Host "5. Click 'Save'" -ForegroundColor White
+    }
+    
     Write-Host ""
 }
 
