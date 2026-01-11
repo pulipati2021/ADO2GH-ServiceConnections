@@ -260,42 +260,88 @@ Pipeline Name: Migration-testing
 
 ---
 
-## 🔄 Workflow Overview
+## 🔄 Complete User Flows
 
+### Flow 1: Option 1 (PAT) - Quickest Setup
 ```
-FULLY AUTOMATED SETUP
-┌──────────────┐       ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-│ Create PATs  │──→    │ Run Helper   │──→    │ GitHub Auth  │──→    │ Done!        │
-│ (2 min)      │       │ Script       │       │ (1 min)      │       │ Webhooks     │
-│ MANUAL       │       │ (1-3 min)    │       │ MANUAL       │       │ ready to go  │
-└──────────────┘       └──────────────┘       └──────────────┘       └──────────────┘
-                        • Create SC              OAuth                • Push code
-                        • Create Webhook         verification         • Pipeline
-                        • Create Service Hook                         triggers!
-                        • Update Pipeline YAML
-
-
-OPTION 1: PAT-BASED (Quick Setup)
-MANUAL                          AUTOMATED
-┌──────────────┐               ┌──────────────┐
-│ Create PATs  │── PATs────→   │ Setup Script │──Service──→ [Create Webhook]
-│ (5 min)      │              │ (Option 1)   │  Connection
-└──────────────┘               └──────────────┘  (2 min)
-
-
-OPTION 2: OAUTH-BASED (Recommended - More Reliable)
-MANUAL                          AUTOMATED              MANUAL
-┌──────────────┐               ┌──────────────┐       ┌──────────────┐
-│ Have Azure   │────────────→  │ Setup Script │──→    │ Complete     │
-│ DevOps PAT   │              │ (Option 2)   │       │ Authorization│
-└──────────────┘              └──────────────┘       │ in Browser   │
-                               (2 min)                │ (1 min)      │
-                                    ↓                 └──────────────┘
-                              Service Connection
-                              + Service Hook
-                              [Ready to use!]
-                              No token expiration!
+1. Run Helper Script
+   ↓
+2. Select Option 1: Create Service Connection (PAT)
+   ↓
+3. Automatically creates:
+   - Service connection
+   - GitHub webhook
+   - Service Hook subscription
+   ↓
+4. SKIP Option 5 (webhooks already created!)
+   ↓
+5. RUN Option 6: Update Pipeline YAML
+   ↓
+6. git commit && git push
+   ↓
+7. Done! Push code to test trigger
 ```
+
+### Flow 2: Option 2 (OAuth) - Most Reliable
+```
+1. Run Helper Script
+   ↓
+2. Select Option 2: Create Service Connection (OAuth)
+   ↓
+3. Complete OAuth authorization in browser (1 min)
+   ↓
+4. Automatically creates:
+   - Service connection
+   - GitHub webhook
+   - Service Hook subscription
+   ↓
+5. SKIP Option 5 (webhooks already created!)
+   ↓
+6. RUN Option 6: Update Pipeline YAML
+   ↓
+7. git commit && git push
+   ↓
+8. Done! Push code to test trigger
+```
+
+### Flow 3: Option 5 (Manual Service Connection) - When You Already Have SC
+```
+1. You manually created service connection in Azure DevOps
+   ↓
+2. Run Helper Script
+   ↓
+3. Select Option 5: Create Webhook Only
+   ↓
+4. Automatically creates:
+   - GitHub webhook
+   - Service Hook subscription
+   ↓
+5. RUN Option 6: Update Pipeline YAML
+   ↓
+6. git commit && git push
+   ↓
+7. Done! Push code to test trigger
+```
+
+---
+
+## ⚠️ Important Notes
+
+**Option 5 is NOT needed if you used Option 1 or 2**
+- Options 1 & 2 already create webhooks automatically
+- Using Option 5 after 1 or 2 is redundant and may cause conflicts
+- Script now warns about this
+
+**Option 6 is REQUIRED for ALL users**
+- All three flows must use Option 6
+- This fixes the "azuregit only" trigger issue
+- Automatically updates pipeline YAML to use GitHub
+
+**Why this sequence matters:**
+1. Service connection must exist first
+2. Webhooks must be created second
+3. Pipeline YAML must be updated last
+4. Each step must be completed before the next
 
 ---
 

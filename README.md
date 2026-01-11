@@ -188,11 +188,13 @@ See [PIPELINE-CONFIG-GITHUB.md](PIPELINE-CONFIG-GITHUB.md) for:
 
 ### 5. Create Webhook Only (for Existing Service Connections)
 **Setup webhooks without creating service connection:**
-- **Use this if you already created service connection manually via OAuth**
+- **Use this ONLY if** you already have a service connection created manually (outside this script)
+- **DO NOT use** if you used Option 1 or 2 (webhooks already created)
 - Finds your existing service connection automatically
 - Creates GitHub webhook to the existing service connection
 - Creates Service Hook subscription automatically
-- Perfect for: Already have OAuth service connection, just missing webhooks
+- Perfect for: Already have manual service connection, just missing webhooks
+- **After this, still need Option 6 to update pipeline YAML**
 
 ### 6. Update Pipeline YAML for GitHub Triggers **[AUTOMATED]**
 **Automatically configure pipelines to use GitHub repository as trigger source:**

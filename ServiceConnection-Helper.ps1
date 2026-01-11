@@ -496,21 +496,24 @@ function New-ServiceConnection {
                 -AuthHeader $authHeader
             
             Write-Host ""
-            Write-Host "Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Service connection created: $($response.name)" -ForegroundColor White
+            Write-Host "Setup Summary:" -ForegroundColor Green
+            Write-Host "  [OK] Service connection created (PAT)" -ForegroundColor Green
             if ($webhookCreated) {
-                Write-Host "2. GitHub webhook created" -ForegroundColor White
+                Write-Host "  [OK] GitHub webhook created" -ForegroundColor Green
             } else {
-                Write-Host "2. GitHub webhook creation failed - may need manual setup" -ForegroundColor White
+                Write-Host "  [!] GitHub webhook creation - may need manual setup" -ForegroundColor Yellow
             }
             if ($serviceHookCreated) {
-                Write-Host "3. Azure DevOps Service Hook created" -ForegroundColor White
+                Write-Host "  [OK] Azure DevOps Service Hook created" -ForegroundColor Green
             } else {
-                Write-Host "3. Service Hook creation failed - may need manual setup" -ForegroundColor White
+                Write-Host "  [!] Service Hook creation - may need manual setup" -ForegroundColor Yellow
             }
-            Write-Host "4. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-            Write-Host "5. Verify the service connection and service hooks" -ForegroundColor White
-            Write-Host "6. Update your pipeline YAML to use this service connection" -ForegroundColor White
+            Write-Host ""
+            Write-Host "IMPORTANT - Next Required Step:" -ForegroundColor Yellow
+            Write-Host "  [->] Use Option 6 to update pipeline YAML for GitHub triggers!" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Why? Your pipelines currently show 'azuregit' (Azure Repos), not GitHub." -ForegroundColor Cyan
+            Write-Host "Option 6 automatically updates your pipeline to trigger from GitHub." -ForegroundColor Cyan
             Write-Host ""
         } else {
             Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
@@ -709,11 +712,15 @@ function New-ServiceConnectionOAuth {
                 Write-Host "  [!] Service Hook creation - will work after OAuth authorization" -ForegroundColor Yellow
             }
             Write-Host ""
-            Write-Host "Why OAuth is better than PAT:" -ForegroundColor Cyan
+            Write-Host "OAuth Benefits:" -ForegroundColor Cyan
             Write-Host "  * Webhooks use OAuth flow instead of static PAT" -ForegroundColor White
-            Write-Host "  * No PAT expiration issues - Azure DevOps refreshes tokens automatically" -ForegroundColor White
-            Write-Host "  * GitHub can revoke individual OAuth tokens if needed" -ForegroundColor White
-            Write-Host "  * More reliable webhook delivery" -ForegroundColor White
+            Write-Host "  * No PAT expiration causing 401 webhook errors" -ForegroundColor White
+            Write-Host "  * Azure DevOps refreshes tokens automatically" -ForegroundColor White
+            Write-Host "  * More reliable for long-term production use" -ForegroundColor White
+            Write-Host ""
+            Write-Host "Required Final Step:" -ForegroundColor Yellow
+            Write-Host "  [->] After OAuth auth, use Option 6 to update pipeline YAML!" -ForegroundColor Yellow
+            Write-Host "  Why? Pipelines show 'azuregit', not GitHub triggers." -ForegroundColor Cyan
             Write-Host ""
         } else {
             Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
@@ -937,19 +944,22 @@ function Create-WebhookOnlyForExisting {
     Write-Host "Create GitHub Webhook for Existing Service Connection" -ForegroundColor Cyan
     Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Use this option if you already have a service connection" -ForegroundColor Yellow
-    Write-Host "created manually (OAuth) and only need to create webhooks." -ForegroundColor Yellow
+    Write-Host "Use this option ONLY IF:" -ForegroundColor Yellow
+    Write-Host "  1. You already have a service connection created manually (NOT via this script)" -ForegroundColor White
+    Write-Host "  2. AND you need to create webhooks for that service connection" -ForegroundColor White
+    Write-Host ""
+    Write-Host "DO NOT USE if you used Option 1 or 2 (webhooks already created)" -ForegroundColor Red
     Write-Host ""
     
     if (-not $Global:GitHubPAT) {
         Write-Host "ERROR: GitHub PAT not provided!" -ForegroundColor Red
-        Write-Host "Please run option 7 (Manage Authentication) to add GitHub PAT first" -ForegroundColor Yellow
+        Write-Host "Please run option 9 (Manage Authentication) to add GitHub PAT first" -ForegroundColor Yellow
         return
     }
     
     if (-not $Global:AzureDevOpsPAT) {
         Write-Host "ERROR: Azure DevOps PAT not provided!" -ForegroundColor Red
-        Write-Host "Please run option 7 (Manage Authentication) to add Azure DevOps PAT first" -ForegroundColor Yellow
+        Write-Host "Please run option 9 (Manage Authentication) to add Azure DevOps PAT first" -ForegroundColor Yellow
         return
     }
     
@@ -992,6 +1002,12 @@ function Create-WebhookOnlyForExisting {
     Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
     Write-Host "Service Connection: $($connection.ServiceConnectionName)" -ForegroundColor White
     Write-Host ""
+    
+    $confirm = Read-Host "Proceed? (yes/no)"
+    if ($confirm -ne "yes" -and $confirm -ne "y") {
+        Write-Host "Cancelled" -ForegroundColor Yellow
+        return
+    }
     
     # Prepare authentication header for Azure DevOps API
     $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($Global:AzureDevOpsPAT)")) }
@@ -1062,7 +1078,8 @@ function Create-WebhookOnlyForExisting {
                 Write-Host "Next steps:" -ForegroundColor Cyan
                 Write-Host "1. Verify webhook in GitHub: https://github.com/$($connection.RepositoryOwner)/$($connection.RepositoryName)/settings/hooks" -ForegroundColor White
                 Write-Host "2. Check Recent Deliveries for successful events" -ForegroundColor White
-                Write-Host "3. Test by pushing code to trigger the pipeline" -ForegroundColor White
+                Write-Host "3. IMPORTANT: Use Option 6 to update your pipeline YAML for GitHub triggers" -ForegroundColor Yellow
+                Write-Host "4. Test by pushing code to trigger the pipeline" -ForegroundColor White
                 Write-Host ""
             } else {
                 Write-Host "[ERROR] Service connection '$($connection.ServiceConnectionName)' not found!" -ForegroundColor Red
