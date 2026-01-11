@@ -74,50 +74,58 @@ git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github-servic
 ```
 
 The script will:
-1. Ask if you want to provide PATs now
-2. Display an interactive menu with options to:
-   - Create service connections
-   - Validate existing connections
-   - Test webhooks
-   - View configuration
+1. **Prompt for PATs** (GitHub + Azure DevOps)
+2. **Display interactive menu** with 7 options
+3. All credentials stored in-memory only
 
-### Step 3: Provide Credentials When Prompted
+### Step 3: Credentials & Security
 
 - PATs are stored **in-memory only** for this session
 - They are **never saved** to files
 - They are **cleared** when the script exits
+- You can update PATs anytime via Option 6
 
 ---
 
 ## Helper Script Menu Options
 
-### 1. Create Service Connection
-- Requires: GitHub PAT + Azure DevOps PAT
-- Provides step-by-step instructions for Azure DevOps UI
-- You'll use the provided PATs in the Azure DevOps UI
+### 1. Create Service Connection (FULLY AUTOMATED)
+**Complete end-to-end setup:**
+- Creates service connection via Azure DevOps REST API
+- Creates GitHub webhook automatically  
+- Creates Service Hook subscription automatically
+- **Validates service connection type** - detects GitHub vs GitHub Enterprise Server issues
+- Multiple connections support - menu to select which to create
+- Shows detailed creation results with IDs
 
-### 2. Validate Service Connection
-- Requires: Azure DevOps PAT (via Azure CLI)
-- Verifies the connection exists in your project
-- Provides test command to run
+### 2. Validate Service Connection (AUTOMATED)
+**Automatic validation with Azure CLI:**
+- Runs validation automatically if Azure CLI installed
+- Shows service connection details in table format
+- **Detects type mismatches** - warns if GitHub Enterprise used for Cloud repos
+- Multiple connections support - menu to select which to test
+- Manual fallback command provided if Azure CLI not available
 
 ### 3. Test GitHub Webhook
-- Requires: GitHub PAT (optional)
-- Shows where to check webhook deliveries
-- Helps verify webhook was created correctly
+- Instructions for verifying webhook in GitHub
+- Multiple repositories support - menu to select
+- Direct links to GitHub webhook settings page
 
 ### 4. View Service Connections
-- Opens direct links to Azure DevOps project settings
-- Shows command to list connections via Azure CLI
+- Links to Azure DevOps service connections settings
+- Links to service hooks page
+- Multiple projects support - menu to select
 
 ### 5. View CSV Data
-- Displays current configuration from CSV
+- Displays all configured service connections from CSV
+- Formatted table view for easy review
 - No authentication required
 
 ### 6. Manage Authentication
-- Add new PATs anytime
-- Clear specific PATs
-- View current auth status
+- Add/update GitHub PAT anytime
+- Add/update Azure DevOps PAT anytime
+- Clear individual or all PATs
+- View current authentication status
 
 ---
 
@@ -163,21 +171,55 @@ git-AzDo,OtherProject,other-repo,my-org,github-conn-2,Created,Already configured
 
 ## Troubleshooting
 
+### Webhook Returns 404 Error
+
+**Root Cause:** Wrong service connection type selected
+
+**Symptoms:**
+- Webhook created but shows 404 errors
+- "Last delivery was not successful. Invalid HTTP Response: 404"
+- Service Hook created but doesn't trigger pipelines
+
+**Most Common Mistake:**
+- Selected "GitHub Enterprise Server" for GitHub Cloud repositories
+- This causes Azure DevOps to generate a webhook URL that GitHub doesn't recognize
+
+**The Script Now Detects This:**
+- After creation, validates service connection type
+- Shows warning if type is not 'github'
+- Validation tool (Option 2) also checks type
+
+**Fix:**
+1. Delete the incorrect service connection
+2. Create new one selecting **'GitHub'** (NOT 'GitHub Enterprise Server')
+3. Re-run script to create webhook and service hook
+
 ### Service Connection Creation Failed
 
 **Check:**
-1. Azure DevOps PAT has correct scopes
+1. Azure DevOps PAT has correct scopes:
+   - Build (Read & Execute)
+   - Code (Read & Write)
+   - Service Connections (Read & Manage)
 2. PAT is not expired
 3. You have access to project settings
 4. Repository owner name is correct
+5. Project name exists in Azure DevOps
 
-### Webhook Not Created
+### Service Hook Not Triggering Pipelines
 
 **Check:**
-1. GitHub PAT has `admin:org_hook` scope
-2. Service connection was successfully created
-3. GitHub repository is accessible with provided PAT
-4. Check GitHub repository → Settings → Webhooks
+1. Service Hook subscription was created successfully
+2. Pipeline configured to use GitHub as source repository
+3. Branch filters match your push branches
+4. Review Service Hooks at: `https://dev.azure.com/ORG/PROJECT/_settings/serviceHooks`
+
+### Multiple Connections - Selection Issues
+
+**The Script Now:**
+- Displays menu when multiple connections exist
+- Lets you select which one to create/validate/test
+- Includes "Cancel" option to go back without action
 
 ### Azure CLI Commands Not Working
 
@@ -188,7 +230,7 @@ choco install azure-cli
 winget install Microsoft.AzureCLI
 ```
 
-**Login:**
+**Configure:**
 ```powershell
 az login
 az devops configure --defaults organization=https://dev.azure.com/YOUR-ORG
