@@ -262,7 +262,38 @@ Pipeline Name: Migration-testing
 
 ## 🔄 Complete User Flows
 
-### Flow 1: Option 1 (PAT) - Quickest Setup
+### ⭐ EASIEST: Option 10 - Quick Setup Wizard (RECOMMENDED)
+```
+1. Run Helper Script
+   ↓
+2. Select Option 10: Quick Setup Wizard
+   ↓
+3. Choose setup method:
+   A) PAT-Based (quick)
+   B) OAuth (RECOMMENDED - most reliable)
+   C) Manual Service Connection (if you already created one)
+   ↓
+4. Wizard runs everything automatically:
+   - Creates/validates service connection
+   - Updates pipeline YAML for GitHub triggers
+   - Shows completion checklist
+   ↓
+5. Follow final instructions:
+   - git commit && git push
+   ↓
+6. Done! Push code to test trigger
+```
+
+**Why use the Wizard?**
+- ✅ Can't skip required steps
+- ✅ Can't run conflicting options
+- ✅ Clear progress shown at each stage
+- ✅ Perfect for new users and teams
+- ✅ No decision fatigue - just follow the path you choose
+
+---
+
+### Flow 1: Option 1 (PAT) - Quickest Manual Setup
 ```
 1. Run Helper Script
    ↓
@@ -282,12 +313,13 @@ Pipeline Name: Migration-testing
 7. Done! Push code to test trigger
 ```
 
-### Flow 2: Option 2 (OAuth) - Most Reliable
+### Flow 2: Option 2 (OAuth) - Most Reliable Manual Setup
 ```
 1. Run Helper Script
    ↓
 2. Select Option 2: Create Service Connection (OAuth)
    ↓
+````
 3. Complete OAuth authorization in browser (1 min)
    ↓
 4. Automatically creates:

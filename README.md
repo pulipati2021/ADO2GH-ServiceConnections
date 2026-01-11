@@ -222,6 +222,46 @@ See [PIPELINE-CONFIG-GITHUB.md](PIPELINE-CONFIG-GITHUB.md) for:
 - Clear individual or all PATs
 - View current authentication status
 
+### 10. Quick Setup Wizard (Guided Workflow) **[RECOMMENDED FOR NEW USERS]**
+**Complete automated setup in the right sequence - prevents user mistakes:**
+- Choose your preferred setup method (A, B, or C)
+- Runs all required steps in the correct order automatically
+- **No option to skip required steps**
+- **No option to run conflicting operations**
+- Guides you from service connection creation all the way to completed setup
+- **Perfect for**: First-time users, teams, production setups
+
+**Three Guided Paths:**
+
+**Path A: PAT-Based Setup** (Quick ~2-3 minutes)
+1. Creates service connection with GitHub PAT
+2. Validates connection works
+3. Updates pipeline YAML for GitHub triggers
+4. Done! Shows final commit/push instructions
+
+**Path B: OAuth Setup (RECOMMENDED)** (~3-4 minutes with browser step)
+1. Creates service connection with OAuth (includes browser authorization)
+2. Validates connection works
+3. Updates pipeline YAML for GitHub triggers
+4. Done! Shows final instructions (no token expiration worries!)
+
+**Path C: Manual Service Connection** (for existing connections)
+1. Creates webhooks for your already-created service connection
+2. Validates connection works
+3. Updates pipeline YAML for GitHub triggers
+4. Done! Shows final instructions
+
+**Why use the Wizard?**
+- Prevents running Option 5 after Option 1/2 (which would be redundant)
+- Ensures Option 6 (pipeline YAML) is never skipped
+- Shows clear progress with "Step 1 Complete", "Step 2 Complete" messages
+- Displays final checklist and commit instructions
+- Can't accidentally skip important steps
+- Ideal for teams where multiple people run the script
+
+### 11. Exit
+- Exit the helper script
+
 ---
 
 ## Authentication & Security
