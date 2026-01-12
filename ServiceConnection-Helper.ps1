@@ -11,24 +11,19 @@ $Colors = @{
     Info    = "Cyan"
 }
 
-# Global variables for credentials
-$Global:GitHubPAT = $null
+# Global variables for credentials (OAuth-only, no PAT needed)
 $Global:AzureDevOpsPAT = $null
 $Global:SessionInitialized = $false
 
 function Show-AuthStatus {
     Write-Host ""
-    Write-Host "Authentication Status:" -ForegroundColor Cyan
-    if ($Global:GitHubPAT) {
-        Write-Host "  [OK] GitHub PAT: PROVIDED" -ForegroundColor Green
-    } else {
-        Write-Host "  [--] GitHub PAT: NOT PROVIDED" -ForegroundColor Red
-    }
+    Write-Host "Authentication Status (OAuth-based):" -ForegroundColor Cyan
     if ($Global:AzureDevOpsPAT) {
         Write-Host "  [OK] Azure DevOps PAT: PROVIDED" -ForegroundColor Green
     } else {
         Write-Host "  [--] Azure DevOps PAT: NOT PROVIDED" -ForegroundColor Red
     }
+    Write-Host "  [OK] GitHub: OAuth (browser-based, no PAT needed)" -ForegroundColor Green
     Write-Host ""
 }
 
@@ -36,19 +31,19 @@ function Show-Menu {
     Clear-Host
     Write-Host "=========================================================" -ForegroundColor Cyan
     Write-Host "   Service Connection Helper - GitHub <> Azure DevOps" -ForegroundColor Cyan
+    Write-Host "   (OAuth-Only Mode - No PAT-based Connections)" -ForegroundColor Green
     Write-Host "=========================================================" -ForegroundColor Cyan
     Show-AuthStatus
-    Write-Host "1. Create Service Connection (PAT-based)" -ForegroundColor Yellow
-    Write-Host "2. Create Service Connection (OAuth-based) [RECOMMENDED]" -ForegroundColor Green
-    Write-Host "3. Validate Service Connection" -ForegroundColor Yellow
-    Write-Host "4. Test GitHub Webhook" -ForegroundColor Yellow
-    Write-Host "5. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
-    Write-Host "6. Update Pipeline YAML for GitHub Triggers [AUTOMATED]" -ForegroundColor Green
-    Write-Host "7. View Service Connections" -ForegroundColor Yellow
-    Write-Host "8. View CSV Data" -ForegroundColor Yellow
-    Write-Host "9. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
-    Write-Host "10. Quick Setup Wizard (Guided Workflow)" -ForegroundColor Magenta
-    Write-Host "11. Exit" -ForegroundColor Yellow
+    Write-Host "1. Create Service Connection (OAuth-based)" -ForegroundColor Green
+    Write-Host "2. Validate Service Connection" -ForegroundColor Yellow
+    Write-Host "3. Test GitHub Webhook" -ForegroundColor Yellow
+    Write-Host "4. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
+    Write-Host "5. Update Pipeline YAML for GitHub Triggers [AUTOMATED]" -ForegroundColor Green
+    Write-Host "6. View Service Connections" -ForegroundColor Yellow
+    Write-Host "7. View CSV Data" -ForegroundColor Yellow
+    Write-Host "8. Manage Authentication (Azure DevOps PAT only)" -ForegroundColor Yellow
+    Write-Host "9. Quick Setup Wizard (Guided Workflow)" -ForegroundColor Magenta
+    Write-Host "10. Exit" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
 }
@@ -84,14 +79,14 @@ function Get-SecurePAT {
 function Initialize-Session {
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
-    Write-Host "   Session Initialization - Authentication Setup" -ForegroundColor Cyan
+    Write-Host "   Session Initialization - OAuth Setup" -ForegroundColor Cyan
     Write-Host "=========================================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Provide your credentials (they will remain in memory for this session only):" -ForegroundColor Cyan
+    Write-Host "OAuth Authentication:" -ForegroundColor Cyan
+    Write-Host "  GitHub authentication will be handled via browser OAuth flow." -ForegroundColor White
+    Write-Host "  No GitHub PAT needed - safer and more secure!" -ForegroundColor Green
     Write-Host ""
-    
-    $Global:GitHubPAT = Get-SecurePAT "GitHub PAT"
-    Write-Host "[OK] GitHub PAT stored in session" -ForegroundColor Green
+    Write-Host "Provide your Azure DevOps credentials (will remain in memory for this session only):" -ForegroundColor Cyan
     Write-Host ""
     
     $Global:AzureDevOpsPAT = Get-SecurePAT "Azure DevOps PAT"
@@ -107,42 +102,28 @@ function Manage-Authentication {
     Write-Host ""
     Write-Host "Manage Authentication:" -ForegroundColor Cyan
     Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "OAuth-Only Mode: GitHub uses browser-based OAuth" -ForegroundColor Green
+    Write-Host ""
     Show-AuthStatus
     
     Write-Host "Options:" -ForegroundColor Yellow
-    Write-Host "1. Add GitHub PAT"
-    Write-Host "2. Add Azure DevOps PAT"
-    Write-Host "3. Clear GitHub PAT"
-    Write-Host "4. Clear Azure DevOps PAT"
-    Write-Host "5. Clear All PATs"
-    Write-Host "6. Go back"
+    Write-Host "1. Add Azure DevOps PAT"
+    Write-Host "2. Clear Azure DevOps PAT"
+    Write-Host "3. Go back"
     Write-Host ""
     
     $choice = Read-Host "Select option"
     
     switch ($choice) {
         "1" {
-            $Global:GitHubPAT = Get-SecurePAT "GitHub PAT"
-            Write-Host "[OK] GitHub PAT updated" -ForegroundColor Green
-        }
-        "2" {
             $Global:AzureDevOpsPAT = Get-SecurePAT "Azure DevOps PAT"
             Write-Host "[OK] Azure DevOps PAT updated" -ForegroundColor Green
         }
-        "3" {
-            $Global:GitHubPAT = $null
-            Write-Host "[OK] GitHub PAT cleared" -ForegroundColor Green
-        }
-        "4" {
+        "2" {
             $Global:AzureDevOpsPAT = $null
             Write-Host "[OK] Azure DevOps PAT cleared" -ForegroundColor Green
         }
-        "5" {
-            $Global:GitHubPAT = $null
-            $Global:AzureDevOpsPAT = $null
-            Write-Host "[OK] All PATs cleared" -ForegroundColor Green
-        }
-        "6" { return }
+        "3" { return }
         default { Write-Host "Invalid option" -ForegroundColor Red }
     }
     
@@ -462,202 +443,6 @@ function Create-ServiceHookSubscription {
         return $false
     }
 }
-
-function New-ServiceConnection {
-    Write-Host ""
-    Write-Host "Creating Service Connection..." -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
-    
-    if (-not $Global:GitHubPAT -or -not $Global:AzureDevOpsPAT) {
-        Write-Host "ERROR: Both GitHub PAT and Azure DevOps PAT are required!" -ForegroundColor Red
-        Write-Host "Please add them in the Authentication menu first." -ForegroundColor Yellow
-        return
-    }
-    
-    $data = Read-ServiceConnectionCSV
-    if ($null -eq $data) { return }
-    
-    # Handle both single connection and array of connections
-    if ($data -is [System.Array]) {
-        $connections = $data
-    } else {
-        $connections = @($data)
-    }
-    
-    # If multiple connections, ask which one to create
-    if ($connections.Count -gt 1) {
-        Write-Host ""
-        Write-Host "Multiple service connections to create:" -ForegroundColor Yellow
-        Write-Host ""
-        for ($i = 0; $i -lt $connections.Count; $i++) {
-            Write-Host "$($i + 1). $($connections[$i].ServiceConnectionName) in $($connections[$i].Organization)/$($connections[$i].ProjectName)"
-        }
-        Write-Host "$($connections.Count + 1). Cancel"
-        Write-Host ""
-        
-        $maxNum = $connections.Count
-        $cancelNum = $connections.Count + 1
-        $selection = Read-Host "Select connection (1-$maxNum) or ($cancelNum) to cancel"
-        $index = [int]$selection - 1
-        
-        if ($selection -eq "$($connections.Count + 1)" -or $index -lt 0 -or $index -ge $connections.Count) {
-            Write-Host "Cancelled" -ForegroundColor Yellow
-            return
-        }
-        $connection = $connections[$index]
-    } else {
-        $connection = $connections[0]
-    }
-    
-    Write-Host ""
-    Write-Host "Creating: $($connection.ServiceConnectionName)" -ForegroundColor Yellow
-    Write-Host "Organization: $($connection.Organization)" -ForegroundColor White
-    Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
-    Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor White
-    Write-Host ""
-    
-    $confirm = Read-Host "Proceed with creation? (yes/no)"
-    if ($confirm -ne "yes" -and $confirm -ne "y") {
-        Write-Host "Cancelled" -ForegroundColor Yellow
-        return
-    }
-    
-    # Create the service connection using Azure DevOps REST API
-    $orgUrl = "https://dev.azure.com/$($connection.Organization)"
-    $projectName = $connection.ProjectName
-    $scName = $connection.ServiceConnectionName
-    $githubPat = $Global:GitHubPAT
-    $adoPat = $Global:AzureDevOpsPAT
-    
-    # Prepare authentication header for Azure DevOps API
-    $authHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$adoPat")) }
-    
-    # Get the project ID
-    Write-Host "Fetching project ID..." -ForegroundColor Cyan
-    $projectId = Get-ProjectId -OrgUrl $orgUrl -ProjectName $projectName -AuthHeader $authHeader
-    
-    if ($null -eq $projectId) {
-        Write-Host "Cannot proceed without project ID" -ForegroundColor Red
-        return
-    }
-    
-    Write-Host "Project ID: $projectId" -ForegroundColor White
-    Write-Host ""
-    
-    # Service connection payload for GitHub
-    $serviceConnectionPayload = @{
-        name = $scName
-        type = "github"
-        url = "https://api.github.com"
-        authorization = @{
-            scheme = "PersonalAccessToken"
-            parameters = @{
-                accessToken = $githubPat
-            }
-        }
-        description = "Service connection for $($connection.RepositoryOwner)/$($connection.RepositoryName)"
-        operationStatus = $null
-        serviceEndpointProjectReferences = @(
-            @{
-                projectReference = @{
-                    id = $projectId
-                    name = $projectName
-                }
-                name = $scName
-            }
-        )
-    } | ConvertTo-Json -Depth 10
-    
-    Write-Host "Sending request to Azure DevOps API..." -ForegroundColor Cyan
-    
-    try {
-        $response = Invoke-RestMethod `
-            -Uri "$orgUrl/_apis/serviceendpoint/endpoints?api-version=6.0" `
-            -Method Post `
-            -Headers $authHeader `
-            -ContentType "application/json" `
-            -Body $serviceConnectionPayload `
-            -ErrorAction Stop
-        
-        if ($response.id) {
-            Write-Host ""
-            Write-Host "[OK] Service connection created successfully!" -ForegroundColor Green
-            Write-Host "ID: $($response.id)" -ForegroundColor White
-            Write-Host "Name: $($response.name)" -ForegroundColor White
-            Write-Host "Type: $($response.type)" -ForegroundColor White
-            Write-Host ""
-            
-            # Validate service connection type
-            if ($response.type -ne "github") {
-                Write-Host "[WARNING] Service connection type is '$($response.type)' but should be 'github'" -ForegroundColor Yellow
-                Write-Host "This may cause webhook 404 errors!" -ForegroundColor Yellow
-                Write-Host ""
-                Write-Host "Fix:" -ForegroundColor Yellow
-                Write-Host "1. Delete this service connection" -ForegroundColor White
-                Write-Host "2. Ensure you select 'GitHub' (not GitHub Enterprise Server)" -ForegroundColor White
-                Write-Host "3. Create a new service connection" -ForegroundColor White
-                Write-Host ""
-            }
-            
-            # Attempt to create webhook automatically
-            $webhookCreated = Create-GitHubWebhook `
-                -RepoOwner $connection.RepositoryOwner `
-                -RepoName $connection.RepositoryName `
-                -GitHubPAT $githubPat `
-                -Organization $connection.Organization `
-                -ProjectName $projectName `
-                -ServiceConnectionId $response.id `
-                -AuthHeader $authHeader
-            
-            # Attempt to create Azure DevOps Service Hook subscription
-            Write-Host ""
-            $serviceHookCreated = Create-ServiceHookSubscription `
-                -Organization $connection.Organization `
-                -ProjectName $projectName `
-                -ServiceConnectionId $response.id `
-                -RepoOwner $connection.RepositoryOwner `
-                -RepoName $connection.RepositoryName `
-                -AuthHeader $authHeader
-            
-            Write-Host ""
-            Write-Host "Setup Summary:" -ForegroundColor Green
-            Write-Host "  [OK] Service connection created (PAT)" -ForegroundColor Green
-            if ($webhookCreated) {
-                Write-Host "  [OK] GitHub webhook created" -ForegroundColor Green
-            } else {
-                Write-Host "  [!] GitHub webhook creation - may need manual setup" -ForegroundColor Yellow
-            }
-            if ($serviceHookCreated) {
-                Write-Host "  [OK] Azure DevOps Service Hook created" -ForegroundColor Green
-            } else {
-                Write-Host "  [!] Service Hook creation - may need manual setup" -ForegroundColor Yellow
-            }
-            Write-Host ""
-            Write-Host "IMPORTANT - Next Required Step:" -ForegroundColor Yellow
-            Write-Host "  [->] Use Option 6 to update pipeline YAML for GitHub triggers!" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "Why? Your pipelines currently show 'azuregit' (Azure Repos), not GitHub." -ForegroundColor Cyan
-            Write-Host "Option 6 automatically updates your pipeline to trigger from GitHub." -ForegroundColor Cyan
-            Write-Host ""
-        } else {
-            Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
-            Write-Host "Response: $response" -ForegroundColor Red
-        }
-    } catch {
-        Write-Host "[ERROR] Failed to create service connection" -ForegroundColor Red
-        Write-Host "Error: $_" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Manual alternative:" -ForegroundColor Yellow
-        Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-        Write-Host "2. Click New service connection -> GitHub" -ForegroundColor White
-        Write-Host "3. Select 'Personal access token (PAT)'" -ForegroundColor White
-        Write-Host "4. Paste your GitHub PAT and name it: $scName" -ForegroundColor White
-        Write-Host "5. Click 'Save'" -ForegroundColor White
-    }
-    
-    Write-Host ""
-}
-
 function New-ServiceConnectionOAuth {
     Write-Host ""
     Write-Host "Create Service Connection with OAuth (GitHub Authorization)" -ForegroundColor Cyan
@@ -748,6 +533,9 @@ function New-ServiceConnectionOAuth {
         name = $scName
         type = "github"
         url = "https://api.github.com"
+        endpoint = @{
+            url = "https://github.com"
+        }
         authorization = @{
             scheme = "OAuth"
             parameters = @{
@@ -1444,17 +1232,16 @@ if ($Action -eq "menu") {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { New-ServiceConnection; Read-Host "Press Enter to continue" }
-            "2" { New-ServiceConnectionOAuth; Read-Host "Press Enter to continue" }
-            "3" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
-            "4" { Test-Webhook; Read-Host "Press Enter to continue" }
-            "5" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
-            "6" { Update-PipelineYAMLFiles; Read-Host "Press Enter to continue" }
-            "7" { View-ServiceConnections; Read-Host "Press Enter to continue" }
-            "8" { Show-CSVData; Read-Host "Press Enter to continue" }
-            "9" { Manage-Authentication }
-            "10" { Invoke-GuidedWorkflow; Read-Host "Press Enter to continue" }
-            "11" { exit }
+            "1" { New-ServiceConnectionOAuth; Read-Host "Press Enter to continue" }
+            "2" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
+            "3" { Test-Webhook; Read-Host "Press Enter to continue" }
+            "4" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
+            "5" { Update-PipelineYAMLFiles; Read-Host "Press Enter to continue" }
+            "6" { View-ServiceConnections; Read-Host "Press Enter to continue" }
+            "7" { Show-CSVData; Read-Host "Press Enter to continue" }
+            "8" { Manage-Authentication }
+            "9" { Invoke-GuidedWorkflow; Read-Host "Press Enter to continue" }
+            "10" { exit }
             default { Write-Host "Invalid option" -ForegroundColor Red; Read-Host "Press Enter to continue" }
         }
     } while ($true)

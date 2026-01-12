@@ -1,3 +1,2 @@
 Organization,ProjectName,RepositoryName,RepositoryOwner,ServiceConnectionName,Status,Notes
-git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github-service-connection,Pending,Generate PATs separately and provide via environment variables or secure input
-git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github.com_pulipati2021,,
+git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github.com_pulipati2021,Created,Manually created - needs webhooks and pipeline YAML configuration
