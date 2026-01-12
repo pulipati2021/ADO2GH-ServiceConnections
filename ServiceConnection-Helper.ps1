@@ -578,6 +578,30 @@ function New-ServiceConnectionOAuth {
             Write-Host "Type: $($response.type)" -ForegroundColor White
             Write-Host ""
             
+            # Open browser for OAuth authorization
+            $authUrl = "$orgUrl/$projectName/_settings/adminservices"
+            Write-Host "Opening Azure DevOps Service Connections page..." -ForegroundColor Cyan
+            Write-Host "URL: $authUrl" -ForegroundColor White
+            Write-Host ""
+            
+            try {
+                Start-Process $authUrl
+                Write-Host "[OK] Browser opened for OAuth authorization" -ForegroundColor Green
+                Write-Host ""
+                Write-Host "REQUIRED: Complete these steps in your browser:" -ForegroundColor Yellow
+                Write-Host "1. Look for the service connection: $($response.name)" -ForegroundColor White
+                Write-Host "2. Click on it to open details" -ForegroundColor White
+                Write-Host "3. Click 'Authorize' button" -ForegroundColor White
+                Write-Host "4. You will be redirected to GitHub to authorize access" -ForegroundColor White
+                Write-Host "5. Click 'Authorize' in GitHub (if prompted)" -ForegroundColor White
+                Write-Host "6. Return to Azure DevOps to confirm" -ForegroundColor White
+                Write-Host ""
+            } catch {
+                Write-Host "[WARNING] Could not automatically open browser" -ForegroundColor Yellow
+                Write-Host "Please manually go to: $authUrl" -ForegroundColor Cyan
+                Write-Host ""
+            }
+            
             Write-Host "IMPORTANT: Complete OAuth Authorization:" -ForegroundColor Yellow
             Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
             Write-Host "2. Click on service connection: $($response.name)" -ForegroundColor White
