@@ -709,6 +709,12 @@ function New-ServiceConnectionOAuth {
     Write-Host "Project: $($connection.ProjectName)" -ForegroundColor White
     Write-Host "Repository: $($connection.RepositoryOwner)/$($connection.RepositoryName)" -ForegroundColor White
     Write-Host ""
+    
+    # Set variables for URL
+    $orgUrl = "https://dev.azure.com/$($connection.Organization)"
+    $projectName = $connection.ProjectName
+    $scName = $connection.ServiceConnectionName
+    
     Write-Host "Opening Azure DevOps in your browser..." -ForegroundColor Cyan
     Write-Host ""
     
