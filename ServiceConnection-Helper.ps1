@@ -557,122 +557,54 @@ function New-ServiceConnectionOAuth {
     Write-Host "Note: You will be prompted to authorize GitHub in your browser." -ForegroundColor Yellow
     Write-Host ""
     
+    # Open browser for OAuth authorization
+    $authUrl = "$orgUrl/$projectName/_settings/adminservices"
+    Write-Host "Opening Azure DevOps Service Connections page..." -ForegroundColor Cyan
+    Write-Host "URL: $authUrl" -ForegroundColor White
+    Write-Host ""
+    
     try {
-        $response = Invoke-RestMethod `
-            -Uri "$orgUrl/_apis/serviceendpoint/endpoints?api-version=6.0" `
-            -Method Post `
-            -Headers $authHeader `
-            -ContentType "application/json" `
-            -Body $serviceConnectionPayload `
-            -ErrorAction Stop
-        
-        if ($response.id) {
-            Write-Host ""
-            Write-Host "[OK] Service connection created successfully!" -ForegroundColor Green
-            Write-Host "ID: $($response.id)" -ForegroundColor White
-            Write-Host "Name: $($response.name)" -ForegroundColor White
-            Write-Host "Type: $($response.type)" -ForegroundColor White
-            Write-Host ""
-            
-            # Open browser for OAuth authorization
-            $authUrl = "$orgUrl/$projectName/_settings/adminservices"
-            Write-Host "Opening Azure DevOps Service Connections page..." -ForegroundColor Cyan
-            Write-Host "URL: $authUrl" -ForegroundColor White
-            Write-Host ""
-            
-            try {
-                Start-Process $authUrl
-                Write-Host "[OK] Browser opened for OAuth authorization" -ForegroundColor Green
-                Write-Host ""
-                Write-Host "REQUIRED: Complete these steps in your browser:" -ForegroundColor Yellow
-                Write-Host "1. Look for the service connection: $($response.name)" -ForegroundColor White
-                Write-Host "2. Click on it to open details" -ForegroundColor White
-                Write-Host "3. Click 'Authorize' button" -ForegroundColor White
-                Write-Host "4. You will be redirected to GitHub to authorize access" -ForegroundColor White
-                Write-Host "5. Click 'Authorize' in GitHub (if prompted)" -ForegroundColor White
-                Write-Host "6. Return to Azure DevOps to confirm" -ForegroundColor White
-                Write-Host ""
-            } catch {
-                Write-Host "[WARNING] Could not automatically open browser" -ForegroundColor Yellow
-                Write-Host "Please manually go to: $authUrl" -ForegroundColor Cyan
-                Write-Host ""
-            }
-            
-            Write-Host "IMPORTANT: Complete OAuth Authorization:" -ForegroundColor Yellow
-            Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-            Write-Host "2. Click on service connection: $($response.name)" -ForegroundColor White
-            Write-Host "3. Click 'Authorize' button" -ForegroundColor White
-            Write-Host "4. You will be redirected to GitHub to authorize access" -ForegroundColor White
-            Write-Host "5. Click 'Authorize' in GitHub" -ForegroundColor White
-            Write-Host "6. You will be redirected back to Azure DevOps" -ForegroundColor White
-            Write-Host ""
-            
-            # Attempt to create webhook automatically
-            Write-Host "Creating webhook for this service connection..." -ForegroundColor Cyan
-            $scId = $response.id
-            
-            $webhookCreated = Create-GitHubWebhookOAuth `
-                -RepoOwner $connection.RepositoryOwner `
-                -RepoName $connection.RepositoryName `
-                -Organization $connection.Organization `
-                -ProjectName $projectName `
-                -ServiceConnectionId $scId `
-                -AuthHeader $authHeader
-            
-            # Attempt to create Azure DevOps Service Hook subscription
-            Write-Host ""
-            $serviceHookCreated = Create-ServiceHookSubscription `
-                -Organization $connection.Organization `
-                -ProjectName $projectName `
-                -ServiceConnectionId $scId `
-                -RepoOwner $connection.RepositoryOwner `
-                -RepoName $connection.RepositoryName `
-                -AuthHeader $authHeader
-            
-            Write-Host ""
-            Write-Host "Setup Summary:" -ForegroundColor Green
-            Write-Host "  [OK] Service connection created (OAuth)" -ForegroundColor Green
-            Write-Host "  [->] NEXT: Complete authorization at $orgUrl/$projectName/_settings/adminservices" -ForegroundColor Yellow
-            if ($webhookCreated) {
-                Write-Host "  [OK] GitHub webhook created" -ForegroundColor Green
-            } else {
-                Write-Host "  [!] Webhook creation - will work after OAuth authorization" -ForegroundColor Yellow
-            }
-            if ($serviceHookCreated) {
-                Write-Host "  [OK] Azure DevOps Service Hook created" -ForegroundColor Green
-            } else {
-                Write-Host "  [!] Service Hook creation - will work after OAuth authorization" -ForegroundColor Yellow
-            }
-            Write-Host ""
-            Write-Host "OAuth Benefits:" -ForegroundColor Cyan
-            Write-Host "  * Webhooks use OAuth flow instead of static PAT" -ForegroundColor White
-            Write-Host "  * No PAT expiration causing 401 webhook errors" -ForegroundColor White
-            Write-Host "  * Azure DevOps refreshes tokens automatically" -ForegroundColor White
-            Write-Host "  * More reliable for long-term production use" -ForegroundColor White
-            Write-Host ""
-            Write-Host "Required Final Step:" -ForegroundColor Yellow
-            Write-Host "  [->] After OAuth auth, use Option 6 to update pipeline YAML!" -ForegroundColor Yellow
-            Write-Host "  Why? Pipelines show 'azuregit', not GitHub triggers." -ForegroundColor Cyan
-            Write-Host ""
-        } else {
-            Write-Host "[ERROR] Service connection creation failed" -ForegroundColor Red
-            Write-Host "Response: $response" -ForegroundColor Red
-        }
-    } catch {
-        Write-Host "[ERROR] Failed to create service connection" -ForegroundColor Red
-        Write-Host "Error: $_" -ForegroundColor Red
+        Start-Process $authUrl
+        Write-Host "[OK] Browser opened for service connection setup" -ForegroundColor Green
         Write-Host ""
-        Write-Host "Manual alternative (OAuth):" -ForegroundColor Yellow
-        Write-Host "1. Go to: $orgUrl/$projectName/_settings/adminservices" -ForegroundColor White
-        Write-Host "2. Click 'New service connection' > GitHub" -ForegroundColor White
-        Write-Host "3. Select 'GitHub' (not GitHub Enterprise Server)" -ForegroundColor White
-        Write-Host "4. Click 'New GitHub connection using OAuth'" -ForegroundColor White
-        Write-Host "5. Click 'Authorize' and complete GitHub authorization" -ForegroundColor White
-        Write-Host "6. Name it: $scName" -ForegroundColor White
-        Write-Host "7. Click 'Save and queue'" -ForegroundColor White
+    } catch {
+        Write-Host "[WARNING] Could not automatically open browser" -ForegroundColor Yellow
+        Write-Host "Please manually go to: $authUrl" -ForegroundColor Cyan
+        Write-Host ""
     }
     
+    Write-Host "FOLLOW THESE STEPS IN YOUR BROWSER:" -ForegroundColor Yellow
+    Write-Host "1. Click 'New service connection' button" -ForegroundColor White
+    Write-Host "2. Select 'GitHub' from the list" -ForegroundColor White
+    Write-Host "3. Select 'GitHub' (NOT GitHub Enterprise Server)" -ForegroundColor White
+    Write-Host "4. Click 'New GitHub connection using OAuth'" -ForegroundColor White
+    Write-Host "5. Click 'Authorize' - GitHub login popup will appear" -ForegroundColor White
+    Write-Host "6. Login with your GitHub account and authorize Azure DevOps" -ForegroundColor White
+    Write-Host "7. Enter name: $scName" -ForegroundColor White
+    Write-Host "8. Click 'Save and queue'" -ForegroundColor White
     Write-Host ""
+    Write-Host "After completing the steps above, the service connection will be ready!" -ForegroundColor Green
+    Write-Host ""
+    
+    Read-Host "Press Enter when you have completed the OAuth authorization in your browser"
+    
+    Write-Host ""
+    Write-Host "[OK] Service connection '$scName' should now be created and authorized" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Next step:" -ForegroundColor Cyan
+    Write-Host "  Run Option 5 to update pipeline YAML for GitHub triggers" -ForegroundColor Yellow
+    Write-Host ""
+    
+    return
+    
+    # Legacy API approach below (kept for reference but not used)
+    <#
+    The Azure DevOps API does not properly handle OAuth service connection creation.
+    OAuth connections MUST be created through the Azure DevOps web UI where users can
+    interact with the GitHub authorization flow in their browser.
+    
+    See the manual steps above for the correct procedure.
+    #>
 }
 
 function Create-GitHubWebhookOAuth {
