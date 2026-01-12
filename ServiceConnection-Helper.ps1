@@ -35,20 +35,29 @@ function Show-AuthStatus {
 function Show-Menu {
     Clear-Host
     Write-Host "=========================================================" -ForegroundColor Cyan
-    Write-Host "   Service Connection Helper - GitHub <> Azure DevOps" -ForegroundColor Cyan
+    Write-Host "   Service Connection Setup - GitHub <> Azure DevOps" -ForegroundColor Cyan
+    Write-Host "   Complete Guided Workflow (OAuth)" -ForegroundColor Green
     Write-Host "=========================================================" -ForegroundColor Cyan
     Show-AuthStatus
-    Write-Host "1. Create Service Connection (PAT-based)" -ForegroundColor Yellow
-    Write-Host "2. Create Service Connection (OAuth-based) [RECOMMENDED]" -ForegroundColor Green
-    Write-Host "3. Validate Service Connection" -ForegroundColor Yellow
-    Write-Host "4. Test GitHub Webhook" -ForegroundColor Yellow
-    Write-Host "5. Create Webhook Only (for Existing Service Connections)" -ForegroundColor Yellow
-    Write-Host "6. Update Pipeline YAML for GitHub Triggers [AUTOMATED]" -ForegroundColor Green
-    Write-Host "7. View Service Connections" -ForegroundColor Yellow
-    Write-Host "8. View CSV Data" -ForegroundColor Yellow
-    Write-Host "9. Manage Authentication (Add/Remove PATs)" -ForegroundColor Yellow
-    Write-Host "10. Quick Setup Wizard (Guided Workflow)" -ForegroundColor Magenta
-    Write-Host "11. Exit" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "MAIN OPTIONS:" -ForegroundColor Yellow
+    Write-Host "1. Complete Setup Wizard (RECOMMENDED)" -ForegroundColor Green
+    Write-Host "   - Create OAuth connection (guided manual steps)" -ForegroundColor White
+    Write-Host "   - Verify connection works" -ForegroundColor White
+    Write-Host "   - Create webhooks automatically" -ForegroundColor White
+    Write-Host "   - Update pipeline YAML" -ForegroundColor White
+    Write-Host "   - Test with GitHub changes" -ForegroundColor White
+    Write-Host ""
+    Write-Host "2. Verify & Test Connection" -ForegroundColor Yellow
+    Write-Host "   - Test existing service connection" -ForegroundColor White
+    Write-Host "   - Test webhooks" -ForegroundColor White
+    Write-Host "   - Troubleshoot issues" -ForegroundColor White
+    Write-Host ""
+    Write-Host "3. View Configuration" -ForegroundColor Yellow
+    Write-Host "   - View service connections" -ForegroundColor White
+    Write-Host "   - View CSV data" -ForegroundColor White
+    Write-Host ""
+    Write-Host "4. Exit" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "=========================================================" -ForegroundColor Cyan
 }
@@ -151,123 +160,111 @@ function Manage-Authentication {
 
 function Invoke-GuidedWorkflow {
     Write-Host ""
-    Write-Host "========================================================" -ForegroundColor Magenta
-    Write-Host "   QUICK SETUP WIZARD - Complete Automated Workflow" -ForegroundColor Magenta
-    Write-Host "========================================================" -ForegroundColor Magenta
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "   COMPLETE SETUP WIZARD - Step by Step" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "This wizard will guide you through the complete setup process." -ForegroundColor Cyan
-    Write-Host "Each option handles everything automatically - no wrong choices!" -ForegroundColor Cyan
+    Write-Host "This wizard will guide you through the complete setup:" -ForegroundColor Cyan
+    Write-Host "1. Create OAuth Service Connection (manually in browser)" -ForegroundColor White
+    Write-Host "2. Verify the connection works" -ForegroundColor White
+    Write-Host "3. Create webhooks automatically" -ForegroundColor White
+    Write-Host "4. Update pipeline YAML to use GitHub triggers" -ForegroundColor White
+    Write-Host "5. Test with GitHub file changes" -ForegroundColor White
     Write-Host ""
-    Write-Host "Choose your preferred setup method:" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "A) PAT-Based Setup (Quick, uses GitHub Personal Access Token)" -ForegroundColor Yellow
-    Write-Host "   - Fast: 2-3 minutes" -ForegroundColor Gray
-    Write-Host "   - Creates service connection plus webhooks automatically" -ForegroundColor Gray
-    Write-Host "   - Then updates pipeline YAML" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "B) OAuth Setup (RECOMMENDED - Most Reliable)" -ForegroundColor Green
-    Write-Host "   - Takes 3-4 minutes (includes browser authorization)" -ForegroundColor Gray
-    Write-Host "   - Azure DevOps auto-refreshes tokens (no expiration issues)" -ForegroundColor Gray
-    Write-Host "   - Webhooks never fail with 401 errors" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "C) Manual Service Connection (You already created one)" -ForegroundColor Yellow
-    Write-Host "   - Creates webhooks for existing service connection" -ForegroundColor Gray
-    Write-Host "   - Then updates pipeline YAML" -ForegroundColor Gray
-    Write-Host ""
-    $workflowChoice = Read-Host "Select setup method (A/B/C)"
     
-    switch ($workflowChoice.ToUpper()) {
-        "A" {
-            Write-Host ""
-            Write-Host "Starting PAT-Based Setup..." -ForegroundColor Cyan
-            Write-Host ""
-            New-ServiceConnection
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 1 Complete: Service Connection Created" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "Validating service connection..." -ForegroundColor Cyan
-            Test-ServiceConnection
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Update-PipelineYAMLFiles
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
-            Write-Host "2. Push: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code to GitHub" -ForegroundColor White
-            Write-Host ""
-        }
-        "B" {
-            Write-Host ""
-            Write-Host "Starting OAuth Setup..." -ForegroundColor Cyan
-            Write-Host ""
-            New-ServiceConnectionOAuth
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 1 Complete: Service Connection Created" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "Validating service connection..." -ForegroundColor Cyan
-            Test-ServiceConnection
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Update-PipelineYAMLFiles
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
-            Write-Host "2. Push: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code - OAuth tokens auto-refresh" -ForegroundColor White
-            Write-Host ""
-        }
-        "C" {
-            Write-Host ""
-            Write-Host "Starting Manual Service Connection Setup..." -ForegroundColor Cyan
-            Write-Host ""
-            Create-WebhookOnlyForExisting
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 1 Complete: Webhooks Created" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "Validating service connection..." -ForegroundColor Cyan
-            Test-ServiceConnection
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host "Step 2: Updating Pipeline YAML for GitHub Triggers" -ForegroundColor Cyan
-            Write-Host "========================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Update-PipelineYAMLFiles
-            Write-Host ""
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host "SETUP COMPLETE!" -ForegroundColor Green
-            Write-Host "========================================================" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "Next steps:" -ForegroundColor Cyan
-            Write-Host "1. Commit: git add azure-pipelines.yml; git commit -m UpdatePipeline" -ForegroundColor White
-            Write-Host "2. Push: git push" -ForegroundColor White
-            Write-Host "3. Test by pushing code to GitHub" -ForegroundColor White
-            Write-Host ""
-        }
-        default {
-            Write-Host "Invalid option. Please select A, B, or C." -ForegroundColor Red
-        }
+    # Step 1: Create OAuth Service Connection
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "STEP 1: CREATE OAUTH SERVICE CONNECTION" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "IMPORTANT: You will create this manually in Azure DevOps" -ForegroundColor Yellow
+    Write-Host "Why? GitHub OAuth requires browser interaction we cannot automate" -ForegroundColor Yellow
+    Write-Host ""
+    
+    $proceed = Read-Host "Ready to create OAuth connection? (yes/no)"
+    if ($proceed -ne "yes" -and $proceed -ne "y") {
+        Write-Host "Setup cancelled." -ForegroundColor Yellow
+        return
     }
+    
+    New-ServiceConnectionOAuth
+    
+    Write-Host ""
+    Write-Host "Once you've completed the OAuth authorization in your browser..." -ForegroundColor Cyan
+    Read-Host "Press Enter to continue"
+    
+    # Step 2: Verify Connection
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "STEP 2: VERIFY SERVICE CONNECTION" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Testing if the service connection is working..." -ForegroundColor Cyan
+    Write-Host ""
+    
+    Test-ServiceConnection
+    
+    Read-Host "Press Enter to continue"
+    
+    # Step 3: Create Webhooks
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "STEP 3: CREATE GITHUB WEBHOOKS" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Creating webhooks to trigger pipelines on GitHub events..." -ForegroundColor Cyan
+    Write-Host ""
+    
+    Create-WebhookOnlyForExisting
+    
+    Read-Host "Press Enter to continue"
+    
+    # Step 4: Update Pipeline YAML
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "STEP 4: UPDATE PIPELINE YAML" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Updating azure-pipelines.yml to use GitHub triggers..." -ForegroundColor Cyan
+    Write-Host ""
+    
+    Update-PipelineYAMLFiles
+    
+    Read-Host "Press Enter to continue"
+    
+    # Step 5: Test Instructions
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "STEP 5: TEST THE SETUP" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Now let's test if everything is working:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "ACTION REQUIRED:" -ForegroundColor Yellow
+    Write-Host "1. Commit the pipeline changes:" -ForegroundColor White
+    Write-Host "   git add azure-pipelines.yml" -ForegroundColor Gray
+    Write-Host "   git commit -m 'Update pipeline to use GitHub triggers'" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "2. Push to GitHub:" -ForegroundColor White
+    Write-Host "   git push" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "3. Create a test file to trigger the pipeline:" -ForegroundColor White
+    Write-Host "   - Add a new file to your repository" -ForegroundColor Gray
+    Write-Host "   - Or modify an existing file" -ForegroundColor Gray
+    Write-Host "   - Push the change to GitHub" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "4. Verify the pipeline was triggered:" -ForegroundColor White
+    Write-Host "   - Go to: https://dev.azure.com/git-AzDo/Calamos-Test" -ForegroundColor Gray
+    Write-Host "   - Click 'Pipelines' and look for a new run" -ForegroundColor Gray
+    Write-Host "   - It should start automatically when you push" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host "SETUP COMPLETE!" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Your service connection is ready and webhooks are active!" -ForegroundColor Green
+    Write-Host "Push code to GitHub and watch the pipeline auto-trigger." -ForegroundColor Green
+    Write-Host ""
 }
 
 function Get-ProjectId {
@@ -1444,17 +1441,27 @@ if ($Action -eq "menu") {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { New-ServiceConnection; Read-Host "Press Enter to continue" }
-            "2" { New-ServiceConnectionOAuth; Read-Host "Press Enter to continue" }
-            "3" { Test-ServiceConnection; Read-Host "Press Enter to continue" }
-            "4" { Test-Webhook; Read-Host "Press Enter to continue" }
-            "5" { Create-WebhookOnlyForExisting; Read-Host "Press Enter to continue" }
-            "6" { Update-PipelineYAMLFiles; Read-Host "Press Enter to continue" }
-            "7" { View-ServiceConnections; Read-Host "Press Enter to continue" }
-            "8" { Show-CSVData; Read-Host "Press Enter to continue" }
-            "9" { Manage-Authentication }
-            "10" { Invoke-GuidedWorkflow; Read-Host "Press Enter to continue" }
-            "11" { exit }
+            "1" { 
+                Invoke-GuidedWorkflow
+                Read-Host "Press Enter to continue" 
+            }
+            "2" { 
+                Write-Host ""
+                Write-Host "Verify & Test Connection" -ForegroundColor Cyan
+                Test-ServiceConnection
+                Write-Host ""
+                Test-Webhook
+                Read-Host "Press Enter to continue" 
+            }
+            "3" { 
+                Write-Host ""
+                Write-Host "Configuration Data" -ForegroundColor Cyan
+                View-ServiceConnections
+                Write-Host ""
+                Show-CSVData
+                Read-Host "Press Enter to continue" 
+            }
+            "4" { exit }
             default { Write-Host "Invalid option" -ForegroundColor Red; Read-Host "Press Enter to continue" }
         }
     } while ($true)
