@@ -532,17 +532,13 @@ function New-ServiceConnectionOAuth {
     $serviceConnectionPayload = @{
         name = $scName
         type = "github"
-        url = "https://api.github.com"
-        endpoint = @{
-            url = "https://github.com"
-        }
+        url = "https://github.com"
         authorization = @{
             scheme = "OAuth"
-            parameters = @{
-                oauthConfiguration = @{
-                    expirationTime = 0
-                }
-            }
+            parameters = @{}
+        }
+        data = @{
+            repoUrl = "https://github.com"
         }
         description = "Service connection (OAuth) for $($connection.RepositoryOwner)/$($connection.RepositoryName)"
         operationStatus = $null
