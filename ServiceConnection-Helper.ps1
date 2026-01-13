@@ -47,10 +47,12 @@ function Step1-GetPAT {
         
         Write-Host "[OK] PAT validated!" -ForegroundColor Green
         Write-Log "PAT validated for org: $org"
-    
-    if (-not [string]::IsNullOrEmpty($global:GitHubPAT)) {
-        Write-Log "GitHub PAT provided for webhook validation"
-    }
+        
+        if (-not [string]::IsNullOrEmpty($global:GitHubPAT)) {
+            Write-Log "GitHub PAT provided for webhook validation"
+        }
+        
+        if ($response.value.Count -eq 0) {
             Write-Host "No projects found." -ForegroundColor Yellow
             return
         }
