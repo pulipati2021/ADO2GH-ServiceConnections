@@ -30,6 +30,11 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 - Tests it works
 - Lists all projects in your organization
 
+### Collects GitHub Credentials
+- Takes your GitHub PAT
+- Stores it for automated webhook validation
+- Uses it to query GitHub repositories via API
+
 ### Lists Service Connections
 - Shows all GitHub service connections in your project
 - Auto-fills service connection name in CSV
@@ -40,10 +45,11 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 - Saves everything to `SERVICE-CONNECTIONS.csv`
 - Allows multiple repos in one session
 
-### Validates Webhooks
-- Shows webhook URLs in GitHub
-- Guides you to verify webhooks exist
-- Logs verification results
+### Validates Webhooks (Automated)
+- Uses GitHub API to query webhooks
+- Checks for dev.azure.com webhook in each repo
+- Reports webhook status (found/not found)
+- No manual clicking required - API validates both sides
 
 ---
 
@@ -51,6 +57,7 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 
 ✓ Azure DevOps PAT → Get from: https://dev.azure.com/[ORG]/_usersSettings/tokens  
 ✓ Azure DevOps Organization Name → e.g., `git-AzDo`  
+✓ GitHub PAT → Get from: https://github.com/settings/tokens (needs `repo` and `admin:repo_hook` scope)  
 ✓ GitHub account with repo access  
 
 ---
@@ -62,15 +69,20 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 **What you provide:**
 - Azure DevOps PAT
 - Organization name
+- GitHub PAT (for automated webhook validation)
 
 **What happens:**
-- Script validates PAT works
+- Script validates Azure DevOps PAT works
+- Script stores GitHub PAT for Step 4
 - Lists all projects in organization
-- Stores both for next steps
+- Stores both credentials for next steps
 
 **Example output:**
 ```
-✓ PAT validated!
+Enter your Azure DevOps PAT: **********
+Enter Azure DevOps Organization name: git-AzDo
+Enter your GitHub PAT (for webhook validation): github_pat_***
+[OK] PAT validated!
 Projects found: 3
   - Calamos-Test
   - MyOtherProject
@@ -116,24 +128,40 @@ Organization,ProjectName,ServiceConnectionName,RepositoryName,RepositoryOwner,Pi
 git-AzDo,Calamos-Test,github-oauth,my-repo-1,my-org,azure-pipelines.yml,Pending,
 ```
 
-### Step 4: Validate Webhooks (3 minutes)
+### Step 4: Validate Webhooks (1 minute - Automated)
 
-**What you do:**
-- Go to each GitHub repo webhook settings
-- Verify webhook from Azure DevOps exists
-- Check webhook shows 200 status
+**What the script does:**
+- Uses GitHub API with your PAT to query each repository
+- Checks for webhooks pointing to `dev.azure.com`
+- Reports found/not found status
+- Logs all results
 
-**Script does:**
-- Lists GitHub webhook URLs for each repo
-- Guides you to the right location
-- Logs verification results
+**Script validates automatically:**
+- Repository name and owner
+- Webhook URL pattern (dev.azure.com)
+- Webhook status (active or inactive)
 
-**What to check:**
+**Example output:**
 ```
-GitHub: https://github.com/[OWNER]/[REPO]/settings/hooks
-Look for: webhook from dev.azure.com
-Status: 200 (successful)
+STEP 4: Validate Webhooks in GitHub (Automated)
+=================================================
+
+Validating webhooks in GitHub repositories:
+
+Repository: im-sandbox-phanirb/projec1-rep1
+  [OK] Webhook found
+    URL: https://dev.azure.com/...
+    Status: Active
+
+Repository: im-sandbox-phanirb/projec1-rep2
+  [NO] No webhook from dev.azure.com found
+    Found 2 webhook(s) total
 ```
+
+**Why GitHub PAT required:**
+- GitHub API requires authentication for webhook access
+- Scope needed: `repo` + `admin:repo_hook`
+- Script validates both sides: Azure DevOps trigger + GitHub webhook
 
 ---
 
@@ -314,11 +342,11 @@ DONE: CSV ready, webhooks verified, logs created
 
 | Step | Action | Time |
 |------|--------|------|
-| 1 | Validate PAT, List Projects | 1 min |
+| 1 | Validate Azure DevOps PAT, Get GitHub PAT, List Projects | 1 min |
 | 2 | Select Project, List Service Connections | 1 min |
 | 3 | Configure Pipelines, Update CSV | 5 min |
-| 4 | Validate Webhooks in GitHub | 3 min |
-| **Total** | **Complete Setup** | **~10 min** |
+| 4 | Validate Webhooks (Automated API Check) | 1 min |
+| **Total** | **Complete Setup** | **~8 min** |
 
 ---
 
@@ -327,8 +355,10 @@ DONE: CSV ready, webhooks verified, logs created
 ✅ Simple 4-step workflow  
 ✅ Auto-fills CSV format  
 ✅ Validates Azure DevOps PAT  
+✅ Collects and stores GitHub PAT  
 ✅ Lists projects and service connections  
-✅ Guides webhook verification  
+✅ **Validates webhooks automatically via GitHub API** (no manual clicking)  
+✅ Checks both sides: Azure DevOps trigger + GitHub webhook  
 ✅ Logs all actions  
 ✅ Clear error messages  
 ✅ Clean, readable code  

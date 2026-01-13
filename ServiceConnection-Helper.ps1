@@ -33,9 +33,11 @@ function Step1-GetPAT {
     
     $pat = Read-Host "Enter your Azure DevOps PAT"
     $org = Read-Host "Enter Azure DevOps Organization name"
+    $gitPat = Read-Host "Enter your GitHub PAT (for webhook validation)"
     
     $global:AzDoPAT = $pat
     $global:AzDoOrg = $org
+    $global:GitHubPAT = $gitPat
     
     $header = @{Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat")))"}
     
@@ -45,8 +47,10 @@ function Step1-GetPAT {
         
         Write-Host "[OK] PAT validated!" -ForegroundColor Green
         Write-Log "PAT validated for org: $org"
-        
-        if ($response.value.Count -eq 0) {
+    
+    if (-not [string]::IsNullOrEmpty($global:GitHubPAT)) {
+        Write-Log "GitHub PAT provided for webhook validation"
+    }
             Write-Host "No projects found." -ForegroundColor Yellow
             return
         }
@@ -196,12 +200,17 @@ function Step3-ConfigurePipelines {
 }
 
 function Step4-ValidateWebhooks {
-    Write-Host "`nSTEP 4: Validate Webhooks in GitHub" -ForegroundColor Cyan
-    Write-Host "=====================================" -ForegroundColor Cyan
+    Write-Host "`nSTEP 4: Validate Webhooks in GitHub (Automated)" -ForegroundColor Cyan
+    Write-Host "=================================================" -ForegroundColor Cyan
     Write-Host ""
     
     if (-not (Test-Path $ConfigFile)) {
         Write-Host "CSV file not found." -ForegroundColor Red
+        return
+    }
+    
+    if (-not $global:GitHubPAT) {
+        Write-Host "GitHub PAT not provided. Run Step 1 first." -ForegroundColor Red
         return
     }
     
@@ -212,8 +221,11 @@ function Step4-ValidateWebhooks {
         return
     }
     
-    Write-Host "Checking webhooks in GitHub repositories:" -ForegroundColor Green
+    Write-Host "Validating webhooks in GitHub repositories:" -ForegroundColor Green
     Write-Host ""
+    
+    $header = @{Authorization = "Bearer $global:GitHubPAT"}
+    $GitHubApiUrl = "https://api.github.com"
     
     for ($i = 1; $i -lt $lines.Count; $i++) {
         if ([string]::IsNullOrEmpty($lines[$i])) { continue }
@@ -222,20 +234,27 @@ function Step4-ValidateWebhooks {
         $owner = $parts[4]
         $repo = $parts[3]
         
-        $hookUrl = "https://github.com/$owner/$repo/settings/hooks"
-        
         Write-Host "Repository: $owner/$repo" -ForegroundColor Cyan
-        Write-Host "  Check at: $hookUrl" -ForegroundColor Yellow
-        Write-Host "  Look for webhook from dev.azure.com" -ForegroundColor White
         
-        $verified = Read-Host "  Webhook verified? (yes/no)"
-        
-        if ($verified.ToLower() -eq "yes") {
-            Write-Host "[OK] Verified" -ForegroundColor Green
-            Write-Log "Webhook verified: $owner/$repo"
-        } else {
-            Write-Host "[NO] Not verified" -ForegroundColor Red
-            Write-Log "Webhook NOT verified: $owner/$repo"
+        try {
+            $webhooksUrl = "$GitHubApiUrl/repos/$owner/$repo/hooks"
+            $webhooks = Invoke-RestMethod -Uri $webhooksUrl -Headers $header -Method Get -ErrorAction Stop
+            
+            $azureWebhook = $webhooks | Where-Object { $_.config.url -like "*dev.azure.com*" }
+            
+            if ($azureWebhook) {
+                Write-Host "  [OK] Webhook found" -ForegroundColor Green
+                Write-Host "    URL: $($azureWebhook.config.url)" -ForegroundColor White
+                Write-Host "    Status: Active" -ForegroundColor Green
+                Write-Log "Webhook validated: $owner/$repo"
+            } else {
+                Write-Host "  [NO] No webhook from dev.azure.com found" -ForegroundColor Red
+                Write-Host "    Found $($webhooks.Count) webhook(s) total" -ForegroundColor Yellow
+                Write-Log "Webhook NOT found: $owner/$repo"
+            }
+        } catch {
+            Write-Host "  [ERROR] Could not verify: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Log "ERROR validating webhook for $($owner)/$($repo): $($_.Exception.Message)"
         }
         
         Write-Host ""

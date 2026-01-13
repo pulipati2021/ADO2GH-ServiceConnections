@@ -1,0 +1,5 @@
+[2026-01-13 11:36:24] Session started
+[2026-01-13 11:37:13] PAT validated for org: git-AzDo
+[2026-01-13 11:37:36] Found 1 service connections in project: Project1
+[2026-01-13 11:38:40] Added pipeline: azure-pipelines.yml (im-sandbox-phanirb/projec1-rep1)
+[2026-01-13 11:39:10] Webhook NOT verified: im-sandbox-phanirb/projec1-rep1
