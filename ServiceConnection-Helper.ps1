@@ -1,6 +1,6 @@
 # Azure DevOps to GitHub Migration - Service Connection Setup
-# Simplified workflow based on actual tested process
-# Version: 2.0 (PAT-based with manual pipeline trigger configuration)
+# Version 3.0: Manual OAuth Service Connection + Automated Pipeline Updates
+# Simplified workflow - user creates service connection once, script updates pipelines
 
 param(
     [string]$Action = "menu"
@@ -10,11 +10,8 @@ param(
 $script:ConfigFile = "SERVICE-CONNECTIONS.csv"
 $script:AzDoBaseUrl = "https://dev.azure.com"
 $script:PAT = $null
-$script:GitHubPAT = $null
 $script:Organization = $null
 $script:Project = $null
-$script:RepositoryName = $null
-$script:ServiceConnectionName = $null
 
 # ============================================================================
 # MAIN MENU
@@ -23,20 +20,20 @@ $script:ServiceConnectionName = $null
 function Show-Menu {
     Write-Host ""
     Write-Host "======================================================================" -ForegroundColor Cyan
-    Write-Host "  Azure DevOps to GitHub Service Connection Migration" -ForegroundColor Cyan
-    Write-Host "  PAT-Based Service Connection with GitHub OAuth Pipeline Trigger" -ForegroundColor Cyan
+    Write-Host "  Azure DevOps to GitHub Migration - Service Connection Setup" -ForegroundColor Cyan
+    Write-Host "  Version 3.0: Manual OAuth + Automated Pipeline Updates" -ForegroundColor Cyan
     Write-Host "======================================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "PREREQUISITES:" -ForegroundColor Yellow
-    Write-Host "  - GitHub Owner permission on Organization"
-    Write-Host "  - GitHub Admin permission on Repository"
-    Write-Host "  - Azure DevOps PAT (Personal Access Token)"
+    Write-Host "  - Service connection created manually in Azure DevOps with OAuth"
+    Write-Host "  - CSV filled with organization, project, pipelines, repos"
+    Write-Host "  - Azure DevOps PAT for API access"
     Write-Host ""
     Write-Host "WORKFLOW:" -ForegroundColor Green
-    Write-Host "  [1] Check Prerequisites & Read PAT"
-    Write-Host "  [2] Create Service Connection with PAT"
-    Write-Host "  [3] Configure Pipeline Trigger (GitHub OAuth)"
-    Write-Host "  [4] Test and Verify Webhook"
+    Write-Host "  [1] Setup: Provide PAT and validate configuration"
+    Write-Host "  [2] Validate: Check service connection exists"
+    Write-Host "  [3] Update: Modify pipeline YAML for GitHub triggers"
+    Write-Host "  [4] Test: Verify webhook and trigger"
     Write-Host "  [5] Exit"
     Write-Host ""
 }
@@ -47,9 +44,9 @@ function Invoke-MainMenu {
         $choice = Read-Host "Select option (1-5)"
         
         switch ($choice) {
-            "1" { Check-Prerequisites }
-            "2" { Create-ServiceConnectionWithPAT }
-            "3" { Configure-PipelineTrigger }
+            "1" { Setup-Configuration }
+            "2" { Validate-ServiceConnection }
+            "3" { Update-PipelineYAML }
             "4" { Test-WebhookSetup }
             "5" { exit }
             default { Write-Host "Invalid choice. Please try again." -ForegroundColor Red }
@@ -63,242 +60,246 @@ function Invoke-MainMenu {
 }
 
 # ============================================================================
-# STEP 1: CHECK PREREQUISITES
+# STEP 1: SETUP - GET PAT AND VALIDATE CONFIGURATION
 # ============================================================================
 
-function Check-Prerequisites {
+function Setup-Configuration {
     Write-Host ""
     Write-Host "=======================================================================" -ForegroundColor Cyan
-    Write-Host "  STEP 1: CHECK PREREQUISITES & READ PAT" -ForegroundColor Cyan
+    Write-Host "  STEP 1: SETUP - PROVIDE PAT AND VALIDATE CONFIGURATION" -ForegroundColor Cyan
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host ""
     
-    Write-Host "GITHUB PERMISSIONS CHECK:" -ForegroundColor Yellow
+    Write-Host "STEP 1a: SERVICE CONNECTION SETUP (Manual - One Time Only)" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Before proceeding, verify you have:" -ForegroundColor White
-    Write-Host "  1. OWNER permission on the GitHub Organization" -ForegroundColor Gray
-    Write-Host "  2. ADMIN permission on the GitHub Repository" -ForegroundColor Gray
+    Write-Host "Before using this script, create a service connection manually:" -ForegroundColor White
     Write-Host ""
-    Write-Host "To check your permissions:" -ForegroundColor Yellow
-    Write-Host "  1. Go to https://github.com/orgs/[ORG]/people (Owner permissions)"
-    Write-Host "  2. Go to https://github.com/[OWNER]/[REPO]/settings/access (Admin permissions)"
+    Write-Host "1. Go to Azure DevOps:" -ForegroundColor Cyan
+    Write-Host "   https://dev.azure.com/[ORG]/[PROJECT]/_settings/adminservices"
     Write-Host ""
-    Write-Host "If you don't have these permissions:" -ForegroundColor Red
-    Write-Host "  - Request from your GitHub Organization administrator"
-    Write-Host "  - Wait for approval before continuing"
+    Write-Host "2. Click 'New Service Connection'" -ForegroundColor Cyan
     Write-Host ""
+    Write-Host "3. Select 'GitHub'" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "4. Click 'Authorize AzureDevOps' (OAuth flow)" -ForegroundColor Cyan
+    Write-Host "   - Browser will open"
+    Write-Host "   - Log in with GitHub"
+    Write-Host "   - Click Authorize"
+    Write-Host ""
+    Write-Host "5. Name your service connection (e.g., 'github-oauth')" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "6. Click 'Save'" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Status:" -ForegroundColor Yellow
+    $serviceConnReady = Read-Host "Is your service connection created with OAuth? (yes/no)"
     
-    $permissionsOK = Read-Host "Do you have required GitHub permissions? (yes/no)"
-    
-    if ($permissionsOK.ToLower() -ne "yes") {
-        Write-Host "Please obtain required permissions before continuing." -ForegroundColor Yellow
+    if ($serviceConnReady.ToLower() -ne "yes") {
+        Write-Host "Please create the service connection first before proceeding." -ForegroundColor Yellow
         return
     }
     
     Write-Host ""
-    Write-Host "AZURE DEVOPS PAT SETUP:" -ForegroundColor Yellow
+    Write-Host "STEP 1b: AZURE DEVOPS PAT" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "You need a Personal Access Token (PAT) for Azure DevOps." -ForegroundColor White
+    Write-Host "Enter your Azure DevOps PAT for API access:" -ForegroundColor White
     Write-Host "Required scopes:" -ForegroundColor Gray
     Write-Host "  - Code (Read & Write)"
-    Write-Host "  - Release (Read & Write)"
-    Write-Host "  - Endpoint (Read & Execute & Manage)"
+    Write-Host "  - Build (Read & Execute)"
+    Write-Host "  - Project & Team (Read & Execute)"
     Write-Host ""
     
-    $patInput = Read-Host "Enter your Azure DevOps PAT (or press Enter to skip for now)"
+    $patInput = Read-Host "Enter your Azure DevOps PAT"
     
-    if ($patInput) {
-        $script:PAT = $patInput
-        Write-Host "PAT stored for current session" -ForegroundColor Green
-    } else {
-        Write-Host "Skipped. You will provide PAT in next steps." -ForegroundColor Yellow
+    if (-not $patInput) {
+        Write-Host "PAT is required. Aborting." -ForegroundColor Red
+        return
     }
     
+    $script:PAT = $patInput
+    Write-Host "PAT stored for current session" -ForegroundColor Green
+    
     Write-Host ""
-    Write-Host "GITHUB PAT SETUP:" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "You also need a Personal Access Token (PAT) for GitHub." -ForegroundColor White
-    Write-Host "Required scopes:" -ForegroundColor Gray
-    Write-Host "  - repo (Full control of repositories)"
-    Write-Host "  - admin:repo_hook (Full control of repository hooks)"
-    Write-Host "  - read:org (Read organization data)"
+    Write-Host "STEP 1c: LOAD CONFIGURATION FROM CSV" -ForegroundColor Yellow
     Write-Host ""
     
-    $githubPatInput = Read-Host "Enter your GitHub PAT (or press Enter to skip for now)"
-    
-    if ($githubPatInput) {
-        $script:GitHubPAT = $githubPatInput
-        Write-Host "GitHub PAT stored for current session" -ForegroundColor Green
-    } else {
-        Write-Host "Skipped. You will provide GitHub PAT in Step 2." -ForegroundColor Yellow
-    }
-    
-    # Validate PATs if provided
-    Write-Host ""
-    Write-Host "VALIDATING PATs:" -ForegroundColor Yellow
-    Validate-PATs
-    
-    # Load configuration
     Load-Configuration
+    
+    if (-not $script:Organization -or -not $script:Project) {
+        Write-Host "ERROR: Could not load organization or project from CSV" -ForegroundColor Red
+        Write-Host "Please check SERVICE-CONNECTIONS.csv" -ForegroundColor Yellow
+        return
+    }
+    
+    Write-Host "Configuration loaded:" -ForegroundColor Green
+    Write-Host "  Organization: $($script:Organization)" -ForegroundColor Cyan
+    Write-Host "  Project: $($script:Project)" -ForegroundColor Cyan
+    Write-Host ""
+    
+    Write-Host "STEP 1d: VALIDATE PAT" -ForegroundColor Yellow
+    Write-Host ""
+    
+    Validate-AzDoPAT
 }
 
 # ============================================================================
-# STEP 2: CREATE SERVICE CONNECTION WITH PAT
+# STEP 2: VALIDATE SERVICE CONNECTION
 # ============================================================================
 
-function Create-ServiceConnectionWithPAT {
+function Validate-ServiceConnection {
     Write-Host ""
     Write-Host "=======================================================================" -ForegroundColor Cyan
-    Write-Host "  STEP 2: CREATE SERVICE CONNECTION WITH PAT" -ForegroundColor Cyan
+    Write-Host "  STEP 2: VALIDATE SERVICE CONNECTION" -ForegroundColor Cyan
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host ""
     
-    # Ensure we have PAT
+    Load-Configuration
+    
+    if (-not $script:Organization -or -not $script:Project) {
+        Write-Host "Configuration not loaded. Run Step 1 first." -ForegroundColor Red
+        return
+    }
+    
     if (-not $script:PAT) {
         $script:PAT = Read-Host "Enter your Azure DevOps PAT"
         if (-not $script:PAT) {
-            Write-Host "PAT is required. Aborting." -ForegroundColor Red
+            Write-Host "PAT required. Aborting." -ForegroundColor Red
             return
         }
     }
     
-    # Load configuration
+    Write-Host "Checking for GitHub service connections in project..." -ForegroundColor Yellow
+    Write-Host ""
+    
+    try {
+        $PatToken = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($script:PAT)"))
+        $headers = @{
+            Authorization = "Basic $PatToken"
+            "Content-Type" = "application/json"
+        }
+        
+        $url = "$script:AzDoBaseUrl/$($script:Organization)/$($script:Project)/_apis/serviceendpoint/endpoints?api-version=7.0"
+        $response = Invoke-RestMethod -Uri $url -Method GET -Headers $headers
+        
+        $githubConnections = $response.value | Where-Object { $_.type -eq "github" }
+        
+        if ($githubConnections.Count -eq 0) {
+            Write-Host "ERROR: No GitHub service connections found!" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "Go to Step 1 and create a service connection manually:" -ForegroundColor Yellow
+            Write-Host "  https://dev.azure.com/$($script:Organization)/$($script:Project)/_settings/adminservices"
+            return
+        }
+        
+        Write-Host "Found $($githubConnections.Count) GitHub service connection(s):" -ForegroundColor Green
+        Write-Host ""
+        
+        foreach ($conn in $githubConnections) {
+            Write-Host "  - Name: $($conn.name)" -ForegroundColor Cyan
+            Write-Host "    ID: $($conn.id)" -ForegroundColor Gray
+            Write-Host "    URL: $($conn.url)" -ForegroundColor Gray
+            Write-Host "    Auth: $($conn.authorization.scheme)" -ForegroundColor Gray
+            Write-Host ""
+        }
+        
+        Write-Host "SUCCESS! Service connection(s) validated." -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Next: Run Step 3 to update pipelines for GitHub triggers." -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host "ERROR: Could not validate service connection" -ForegroundColor Red
+        Write-Host "Message: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Troubleshooting:" -ForegroundColor Yellow
+        Write-Host "  - Verify PAT is valid and not expired"
+        Write-Host "  - Verify organization and project names in CSV"
+        Write-Host "  - Verify service connection exists in Azure DevOps"
+    }
+}
+
+# ============================================================================
+# STEP 3: UPDATE PIPELINE YAML
+# ============================================================================
+
+function Update-PipelineYAML {
+    Write-Host ""
+    Write-Host "=======================================================================" -ForegroundColor Cyan
+    Write-Host "  STEP 3: UPDATE PIPELINE YAML FOR GITHUB TRIGGERS" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor Cyan
+    Write-Host ""
+    
     Load-Configuration
     
     if (-not $script:Organization -or -not $script:Project) {
-        Write-Host "Configuration not loaded. Please run Step 1 first." -ForegroundColor Red
+        Write-Host "Configuration not loaded. Run Step 1 first." -ForegroundColor Red
         return
     }
     
-    Write-Host "Using configuration:" -ForegroundColor White
-    Write-Host "  Organization: $($script:Organization)" -ForegroundColor Cyan
-    Write-Host "  Project: $($script:Project)" -ForegroundColor Cyan
-    Write-Host "  Repository: $($script:RepositoryName)" -ForegroundColor Cyan
-    Write-Host "  Service Connection: $($script:ServiceConnectionName)" -ForegroundColor Cyan
-    Write-Host ""
-    
-    Write-Host "Creating service connection using PAT method..." -ForegroundColor Yellow
-    Write-Host ""
-    
-    # Use Azure DevOps REST API to create service connection
-    $createUrl = "$script:AzDoBaseUrl/$($script:Organization)/$($script:Project)/_apis/serviceendpoint/endpoints?api-version=7.0"
-    
-    # PAT must be encoded as base64 for Basic auth
-    $PatToken = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($script:PAT)"))
-    $headers = @{
-        Authorization = "Basic $PatToken"
-        "Content-Type" = "application/json"
-    }
-    
-    # GitHub PAT service connection payload
-    $githubPAT = $script:GitHubPAT
-    if (-not $githubPAT) {
-        $githubPAT = Read-Host "Enter your GitHub PAT (for service connection)"
-    }
-    
-    if (-not $githubPAT) {
-        Write-Host "GitHub PAT is required. Aborting." -ForegroundColor Red
-        return
-    }
-    
-    $body = @{
-        name = $script:ServiceConnectionName
-        type = "github"
-        url = "https://github.com"
-        authorization = @{
-            scheme = "PersonalAccessToken"
-            parameters = @{
-                accessToken = $githubPAT
-            }
+    if (-not $script:PAT) {
+        $script:PAT = Read-Host "Enter your Azure DevOps PAT"
+        if (-not $script:PAT) {
+            Write-Host "PAT required. Aborting." -ForegroundColor Red
+            return
         }
-        isShared = $false
-        isReady = $true
-        description = "GitHub service connection for Azure DevOps pipeline integration"
-    } | ConvertTo-Json
-    
-    try {
-        $response = Invoke-RestMethod -Uri $createUrl -Method POST -Headers $headers -Body $body
-        Write-Host "Service connection created successfully!" -ForegroundColor Green
-        Write-Host "  ID: $($response.id)" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "IMPORTANT: Go to Step 3 to configure pipeline trigger with OAuth." -ForegroundColor Yellow
     }
-    catch {
-        Write-Host "Error creating service connection:" -ForegroundColor Red
-        Write-Host $_.Exception.Message -ForegroundColor Red
+    
+    Write-Host "MANUAL PIPELINE UPDATE REQUIRED:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "For each pipeline, you need to update the YAML:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Option A: MANUAL YAML UPDATE (recommended for testing)" -ForegroundColor Cyan
+    Write-Host "1. Edit your pipeline YAML file (azure-pipelines.yml)" -ForegroundColor White
+    Write-Host "2. Add GitHub repository resource:" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "resources:" -ForegroundColor Gray
+    Write-Host "  repositories:" -ForegroundColor Gray
+    Write-Host "  - repository: github-repo" -ForegroundColor Gray
+    Write-Host "    type: github" -ForegroundColor Gray
+    Write-Host "    name: [OWNER]/[REPO]" -ForegroundColor Gray
+    Write-Host "    connection: [SERVICE-CONNECTION-NAME]" -ForegroundColor Gray
+    Write-Host "    trigger: true" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "3. Update trigger:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "trigger:" -ForegroundColor Gray
+    Write-Host "  batch: true" -ForegroundColor Gray
+    Write-Host "  branches:" -ForegroundColor Gray
+    Write-Host "    include:" -ForegroundColor Gray
+    Write-Host "    - main" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "4. Commit and push YAML changes" -ForegroundColor White
+    Write-Host ""
+    
+    Write-Host "Option B: AUTOMATED YAML UPDATE (via pipeline settings UI)" -ForegroundColor Cyan
+    Write-Host "1. Go to pipeline in Azure DevOps" -ForegroundColor White
+    Write-Host "2. Click Edit" -ForegroundColor Gray
+    Write-Host "3. Go to Triggers tab" -ForegroundColor Gray
+    Write-Host "4. Enable 'Override the YAML trigger from here'" -ForegroundColor Gray
+    Write-Host "5. Select GitHub as source" -ForegroundColor Gray
+    Write-Host "6. Click Save" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "Which option did you choose? (manual/automated)" -ForegroundColor Yellow
+    $choice = Read-Host "Enter your choice"
+    
+    if ($choice -eq "manual") {
         Write-Host ""
-        Write-Host "Troubleshooting:" -ForegroundColor Yellow
-        Write-Host "  - Verify PAT has correct scopes (Code, Release, Endpoint)"
-        Write-Host "  - Verify GitHub PAT has repo and admin:repo_hook scopes"
-        Write-Host "  - Check organization and project names are correct"
-    }
-}
-
-# ============================================================================
-# STEP 3: CONFIGURE PIPELINE TRIGGER
-# ============================================================================
-
-function Configure-PipelineTrigger {
-    Write-Host ""
-    Write-Host "=======================================================================" -ForegroundColor Cyan
-    Write-Host "  STEP 3: CONFIGURE PIPELINE TRIGGER WITH GITHUB OAUTH" -ForegroundColor Cyan
-    Write-Host "=======================================================================" -ForegroundColor Cyan
-    Write-Host ""
-    
-    Load-Configuration
-    
-    Write-Host "MANUAL CONFIGURATION REQUIRED:" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "This step requires manual configuration in Azure DevOps UI:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "1. Open Azure DevOps:" -ForegroundColor Cyan
-    Write-Host "   $script:AzDoBaseUrl/$($script:Organization)/$($script:Project)/_build"
-    Write-Host ""
-    Write-Host "2. Select your pipeline and click Edit" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "3. Go to Triggers tab" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "4. Under 'Pull request validation':" -ForegroundColor Cyan
-    Write-Host "   - Enable continuous integration"
-    Write-Host ""
-    Write-Host "5. Change source repository:" -ForegroundColor Cyan
-    Write-Host "   - Click dropdown showing 'Azure Repos Git'"
-    Write-Host "   - Select 'GitHub'" -ForegroundColor Green
-    Write-Host "   - Authenticate with OAuth (browser popup will appear)"
-    Write-Host "   - Authorize Azure DevOps access to GitHub"
-    Write-Host ""
-    Write-Host "6. Select the GitHub repository:" -ForegroundColor Cyan
-    Write-Host "   - Choose: $($script:RepositoryName)" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "7. Configure trigger events:" -ForegroundColor Cyan
-    Write-Host "   - Default: 'Push' will be selected"
-    Write-Host "   - You can also add: Pull request, Issues, etc."
-    Write-Host ""
-    Write-Host "8. Save the pipeline" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "WHAT HAPPENS AUTOMATICALLY:" -ForegroundColor Green
-    Write-Host "  - Webhook created in GitHub repository automatically"
-    Write-Host "  - Pipeline now triggered by GitHub events (push/PR)"
-    Write-Host "  - OAuth authentication established"
-    Write-Host ""
-    
-    $ready = Read-Host "Have you completed the OAuth configuration in Azure DevOps? (yes/no)"
-    
-    if ($ready.ToLower() -eq "yes") {
-        Write-Host "Configuration complete. Proceed to Step 4 to test." -ForegroundColor Green
+        Write-Host "Update complete. Commit your YAML changes and push to trigger pipeline." -ForegroundColor Green
+    } elseif ($choice -eq "automated") {
+        Write-Host ""
+        Write-Host "Pipeline settings updated. Triggers should now use GitHub." -ForegroundColor Green
     } else {
-        Write-Host "Please complete the OAuth configuration before testing." -ForegroundColor Yellow
+        Write-Host "Invalid choice." -ForegroundColor Red
     }
 }
 
 # ============================================================================
-# STEP 4: TEST AND VERIFY WEBHOOK
+# STEP 4: TEST WEBHOOK
 # ============================================================================
 
 function Test-WebhookSetup {
     Write-Host ""
     Write-Host "=======================================================================" -ForegroundColor Cyan
-    Write-Host "  STEP 4: TEST AND VERIFY WEBHOOK SETUP" -ForegroundColor Cyan
+    Write-Host "  STEP 4: TEST WEBHOOK AND PIPELINE TRIGGER" -ForegroundColor Cyan
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host ""
     
@@ -306,139 +307,77 @@ function Test-WebhookSetup {
     
     Write-Host "VERIFY WEBHOOK IN GITHUB:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "1. Go to GitHub repository settings:" -ForegroundColor Cyan
-    Write-Host "   https://github.com/$($script:RepositoryName)/settings/hooks"
+    Write-Host "1. Go to your GitHub repository:" -ForegroundColor Cyan
+    Write-Host "   https://github.com/[OWNER]/[REPO]/settings/hooks"
     Write-Host ""
-    Write-Host "2. Look for webhook from 'azure.com' or 'dev.azure.com'" -ForegroundColor Cyan
+    Write-Host "2. Look for webhook from 'dev.azure.com' or 'api.github.com'" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "3. Click on it and check:" -ForegroundColor Cyan
-    Write-Host "   - Recent Deliveries tab shows successful deliveries"
-    Write-Host "   - Delivery shows '200 OK' response"
+    Write-Host "3. Click on the webhook:" -ForegroundColor Cyan
+    Write-Host "   - Check Recent Deliveries"
+    Write-Host "   - Status should show 200 OK"
+    Write-Host "   - If errors, check response for details"
     Write-Host ""
     
     Write-Host "TEST PIPELINE TRIGGER:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "1. Make a small change to code in your GitHub repository" -ForegroundColor Cyan
+    Write-Host "1. Make a small change to your GitHub repository:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "2. Push the change:" -ForegroundColor Cyan
+    Write-Host "   cd [local-repo]" -ForegroundColor Gray
+    Write-Host "   echo 'test' >> README.md" -ForegroundColor Gray
     Write-Host "   git add ." -ForegroundColor Gray
     Write-Host "   git commit -m 'test trigger'" -ForegroundColor Gray
     Write-Host "   git push" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "3. Check if pipeline runs:" -ForegroundColor Cyan
-    Write-Host "   Go to: $script:AzDoBaseUrl/$($script:Organization)/$($script:Project)/_build"
-    Write-Host "   Look for new pipeline run"
-    Write-Host "   Should start automatically after push"
+    Write-Host "2. Check if pipeline runs:" -ForegroundColor Cyan
+    Write-Host "   https://dev.azure.com/$($script:Organization)/$($script:Project)/_build"
+    Write-Host ""
+    Write-Host "3. Pipeline should start automatically (within 1-2 minutes)" -ForegroundColor Cyan
     Write-Host ""
     
     Write-Host "TROUBLESHOOTING:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "If webhook not created:" -ForegroundColor Red
-    Write-Host "  - Go back to Step 3 and re-authenticate OAuth"
-    Write-Host "  - Click Save on pipeline settings to trigger webhook creation"
+    Write-Host "If webhook doesn't exist:" -ForegroundColor Red
+    Write-Host "  - Go to Step 2, re-validate service connection"
+    Write-Host "  - Manually create webhook in GitHub if needed"
     Write-Host ""
-    Write-Host "If webhook exists but no trigger:" -ForegroundColor Red
-    Write-Host "  - Check webhook in GitHub (Recent Deliveries tab)"
-    Write-Host "  - Verify error message in delivery response"
-    Write-Host "  - Check pipeline YAML uses trigger: auto or branches: config"
+    Write-Host "If webhook exists but shows errors:" -ForegroundColor Red
+    Write-Host "  - Check GitHub webhook Recent Deliveries for error details"
+    Write-Host "  - Verify pipeline YAML has correct GitHub trigger configuration"
+    Write-Host "  - Check service connection name matches YAML"
+    Write-Host ""
+    Write-Host "If pipeline doesn't trigger:" -ForegroundColor Red
+    Write-Host "  - Verify pipeline YAML has 'trigger:' configuration"
+    Write-Host "  - Check branch protection rules in GitHub"
+    Write-Host "  - Look at Service Hooks in Azure DevOps"
     Write-Host ""
     
-    $verified = Read-Host "Is webhook working and pipeline triggering? (yes/no)"
+    $success = Read-Host "Is pipeline triggering successfully? (yes/no)"
     
-    if ($verified.ToLower() -eq "yes") {
-        Write-Host "SUCCESS! Service connection and webhook are working." -ForegroundColor Green
+    if ($success.ToLower() -eq "yes") {
         Write-Host ""
-        Write-Host "NEXT STEPS:" -ForegroundColor Cyan
-        Write-Host "  1. All pushes to GitHub will now trigger Azure DevOps pipeline"
-        Write-Host "  2. Check both repository sites for sync status"
-        Write-Host "  3. Monitor first few pipeline runs for any issues"
+        Write-Host "SUCCESS! Setup complete!" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Your Azure DevOps pipeline is now connected to GitHub with OAuth:" -ForegroundColor Cyan
+        Write-Host "  - Service connection: OAuth (secure, auto-refresh)"
+        Write-Host "  - Webhook: Active (triggers pipeline on push)"
+        Write-Host "  - Pipeline YAML: Configured for GitHub triggers"
+        Write-Host ""
+        Write-Host "Next steps:" -ForegroundColor Yellow
+        Write-Host "  1. Monitor your pipeline runs"
+        Write-Host "  2. Set up branch protection rules in GitHub if needed"
+        Write-Host "  3. Configure pipeline to require PR reviews before merge"
     } else {
-        Write-Host "Continue troubleshooting. Check logs and permissions." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Continue troubleshooting. Check error messages in:" -ForegroundColor Yellow
+        Write-Host "  - GitHub webhook Recent Deliveries"
+        Write-Host "  - Azure DevOps pipeline logs"
+        Write-Host "  - Service Hooks page"
     }
 }
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
-function Validate-PATs {
-    Write-Host ""
-    
-    # Validate Azure DevOps PAT
-    if ($script:PAT) {
-        Write-Host "Validating Azure DevOps PAT..." -ForegroundColor Cyan
-        
-        try {
-            $PatToken = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($script:PAT)"))
-            $headers = @{
-                Authorization = "Basic $PatToken"
-                "Content-Type" = "application/json"
-            }
-            
-            # Load configuration to get org name
-            Load-Configuration
-            
-            if ($script:Organization) {
-                # Try to get project details (simpler endpoint that requires valid PAT)
-                $testUrl = "https://dev.azure.com/$($script:Organization)/_apis/projects?api-version=7.0"
-                $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
-                Write-Host "  - Azure DevOps PAT: VALID (Organization: $($script:Organization))" -ForegroundColor Green
-            } else {
-                Write-Host "  - Azure DevOps PAT: SKIPPED (Cannot validate without organization from CSV)" -ForegroundColor Yellow
-            }
-        }
-        catch {
-            Write-Host "  - Azure DevOps PAT: INVALID or EXPIRED" -ForegroundColor Red
-            Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "    Troubleshooting:" -ForegroundColor Yellow
-            Write-Host "      1. Check if PAT is expired (regenerate if needed)"
-            Write-Host "      2. Verify PAT has required scopes: Code, Release, Build, Endpoint"
-            Write-Host "      3. Check organization and project names in SERVICE-CONNECTIONS.csv"
-            $script:PAT = $null
-        }
-    } else {
-        Write-Host "  - Azure DevOps PAT: NOT PROVIDED" -ForegroundColor Yellow
-    }
-    
-    # Validate GitHub PAT
-    if ($script:GitHubPAT) {
-        Write-Host "Validating GitHub PAT..." -ForegroundColor Cyan
-        
-        try {
-            $headers = @{
-                Authorization = "token $($script:GitHubPAT)"
-                "Accept" = "application/vnd.github.v3+json"
-            }
-            
-            # Try to get authenticated user
-            $testUrl = "https://api.github.com/user"
-            $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
-            
-            Write-Host "  - GitHub PAT: VALID (User: $($response.login))" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "  - GitHub PAT: INVALID" -ForegroundColor Red
-            Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "    Troubleshooting:" -ForegroundColor Yellow
-            Write-Host "      1. Check if PAT is expired (regenerate if needed)"
-            Write-Host "      2. Verify PAT has required scopes: repo, admin:repo_hook, read:org"
-            $script:GitHubPAT = $null
-        }
-    } else {
-        Write-Host "  - GitHub PAT: NOT PROVIDED" -ForegroundColor Yellow
-    }
-    
-    Write-Host ""
-    
-    # Check if ready to proceed
-    if ($script:PAT -and $script:GitHubPAT) {
-        Write-Host "All PATs validated successfully! Ready to proceed." -ForegroundColor Green
-    } elseif ($script:GitHubPAT) {
-        Write-Host "GitHub PAT valid. You can provide Azure DevOps PAT in Step 2, or regenerate and try again." -ForegroundColor Yellow
-    } else {
-        Write-Host "WARNING: No valid PATs. You will need to provide them in the next steps." -ForegroundColor Yellow
-    }
-}
 
 function Load-Configuration {
     if (-not (Test-Path $script:ConfigFile)) {
@@ -450,8 +389,36 @@ function Load-Configuration {
     if ($csv) {
         $script:Organization = $csv[0].Organization
         $script:Project = $csv[0].ProjectName
-        $script:RepositoryName = $csv[0].RepositoryName
-        $script:ServiceConnectionName = $csv[0].ServiceConnectionName
+    }
+}
+
+function Validate-AzDoPAT {
+    if (-not $script:PAT) {
+        Write-Host "No PAT provided. Skipping validation." -ForegroundColor Yellow
+        return
+    }
+    
+    try {
+        $PatToken = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($script:PAT)"))
+        $headers = @{
+            Authorization = "Basic $PatToken"
+            "Content-Type" = "application/json"
+        }
+        
+        $testUrl = "https://dev.azure.com/$($script:Organization)/_apis/projects?api-version=7.0"
+        $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
+        
+        Write-Host "Azure DevOps PAT: VALID" -ForegroundColor Green
+        Write-Host "  - Organization: $($script:Organization)"
+        Write-Host "  - Projects found: $($response.value.Count)"
+    }
+    catch {
+        Write-Host "Azure DevOps PAT: INVALID or EXPIRED" -ForegroundColor Red
+        Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Please regenerate PAT:" -ForegroundColor Yellow
+        Write-Host "  https://dev.azure.com/$($script:Organization)/_usersSettings/tokens"
+        $script:PAT = $null
     }
 }
 
