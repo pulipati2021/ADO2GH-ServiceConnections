@@ -1,2 +1,2 @@
 Organization,ProjectName,ServiceConnectionName,RepositoryName,RepositoryOwner,PipelineFile,Status,Notes
-git-AzDo,Calamos-Test,github-oauth,AzureRepoCode-CalamosTest,im-sandbox-phanirb,azure-pipelines.yml,OAuth Created,Manual OAuth service connection for GitHub integration
+git-AzDo,Calamos-Test,github-oauth,AzureRepoCode-CalamosTest,im-sandbox-phanirb,azure-pipelines.yml,Pending,Ready for configuration
