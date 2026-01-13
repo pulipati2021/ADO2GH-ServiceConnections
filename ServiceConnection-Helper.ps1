@@ -21,8 +21,9 @@ function Show-Menu {
     Write-Host "  [1] Step 1: Get PAT and List Projects" -ForegroundColor Green
     Write-Host "  [2] Step 2: Select Project and View Service Connections" -ForegroundColor Green
     Write-Host "  [3] Step 3: Configure Pipelines - Fill CSV" -ForegroundColor Green
-    Write-Host "  [4] Step 4: Validate Webhooks in GitHub" -ForegroundColor Green
-    Write-Host "  [5] Exit" -ForegroundColor Red
+    Write-Host "  [4] Step 4: Validate and Create Webhooks" -ForegroundColor Green
+    Write-Host "  [5] Step 5: Update Pipeline YAML - Add GitHub Trigger" -ForegroundColor Green
+    Write-Host "  [6] Exit" -ForegroundColor Red
     Write-Host ""
 }
 
@@ -299,20 +300,99 @@ function Step4-ValidateWebhooks {
     }
 }
 
+function Step5-UpdatePipelineYAML {
+    Write-Host "`nSTEP 5: Update Pipeline YAML - Add GitHub Trigger" -ForegroundColor Cyan
+    Write-Host "====================================================" -ForegroundColor Cyan
+    Write-Host ""
+    
+    if (-not (Test-Path $ConfigFile)) {
+        Write-Host "CSV file not found." -ForegroundColor Red
+        return
+    }
+    
+    if (-not $global:GitHubPAT) {
+        Write-Host "GitHub PAT not provided. Run Step 1 first." -ForegroundColor Red
+        return
+    }
+    
+    $lines = @(Get-Content $ConfigFile)
+    
+    if ($lines.Count -lt 2) {
+        Write-Host "No pipelines in CSV." -ForegroundColor Yellow
+        return
+    }
+    
+    Write-Host "Updating pipeline YAML files to add GitHub trigger:" -ForegroundColor Green
+    Write-Host ""
+    
+    $header = @{Authorization = "Bearer $global:GitHubPAT"}
+    $GitHubApiUrl = "https://api.github.com"
+    
+    for ($i = 1; $i -lt $lines.Count; $i++) {
+        if ([string]::IsNullOrEmpty($lines[$i])) { continue }
+        
+        $parts = $lines[$i] -split ','
+        $owner = $parts[4]
+        $repo = $parts[3]
+        $yamlFile = $parts[5]
+        if ([string]::IsNullOrEmpty($yamlFile)) { $yamlFile = "azure-pipelines.yml" }
+        
+        Write-Host "Repository: $owner/$repo" -ForegroundColor Cyan
+        Write-Host "  File: $yamlFile" -ForegroundColor White
+        
+        try {
+            $getFileUrl = "$GitHubApiUrl/repos/$owner/$repo/contents/$yamlFile"
+            $fileResponse = Invoke-RestMethod -Uri $getFileUrl -Headers $header -Method Get -ErrorAction Stop
+            
+            $fileContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fileResponse.content))
+            
+            # Check if trigger already exists
+            if ($fileContent -match "^\s*trigger:") {
+                Write-Host "  [OK] Trigger block already exists" -ForegroundColor Green
+                Write-Log "Pipeline YAML already has trigger: $owner/$repo"
+            } else {
+                # Add trigger block at the beginning
+                $newContent = "trigger:`n- main`n`n$fileContent"
+                
+                $updatePayload = @{
+                    message = "Add GitHub trigger to pipeline YAML"
+                    content = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($newContent))
+                    sha = $fileResponse.sha
+                } | ConvertTo-Json
+                
+                $updateResult = Invoke-RestMethod -Uri $getFileUrl -Headers $header -Method Put -Body $updatePayload -ContentType "application/json" -ErrorAction Stop
+                
+                Write-Host "  [OK] Trigger block added" -ForegroundColor Green
+                Write-Host "    Commit: $($updateResult.commit.message)" -ForegroundColor White
+                Write-Log "Updated pipeline YAML with trigger: $owner/$repo"
+            }
+        } catch {
+            Write-Host "  [ERROR] Could not update YAML: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Log "ERROR updating YAML for $($owner)/$($repo): $($_.Exception.Message)"
+            Write-Host "  Manual update needed - Add to $($yamlFile):" -ForegroundColor Yellow
+            Write-Host "    trigger:" -ForegroundColor White
+            Write-Host "    - main" -ForegroundColor White
+        }
+        
+        Write-Host ""
+    }
+}
+
 # Main Loop
 if ($Action -eq "start") {
     Write-Log "Session started"
     
     while ($true) {
         Show-Menu
-        $choice = Read-Host "Select (1-5)"
+        $choice = Read-Host "Select (1-6)"
         
         switch ($choice) {
             "1" { Step1-GetPAT }
             "2" { Step2-SelectProject }
             "3" { Step3-ConfigurePipelines }
             "4" { Step4-ValidateWebhooks }
-            "5" { 
+            "5" { Step5-UpdatePipelineYAML }
+            "6" { 
                 Write-Log "Session ended"
                 exit 
             }

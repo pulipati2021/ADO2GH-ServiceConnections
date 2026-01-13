@@ -16,10 +16,11 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 1. **Step 1**: Get PAT and List Projects
 2. **Step 2**: Select Project and View Service Connections
 3. **Step 3**: Configure Pipelines (Fill CSV)
-4. **Step 4**: Validate Webhooks
-5. **Exit**
+4. **Step 4**: Validate and Create Webhooks
+5. **Step 5**: Update Pipeline YAML with GitHub Trigger
+6. **Exit**
 
-**Total time**: ~10 minutes
+**Total time**: ~5 minutes (fully automated!)
 
 ---
 
@@ -63,7 +64,7 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 
 ---
 
-## The 4 Steps Explained
+## The 5 Steps Explained
 
 ### Step 1: Get PAT and List Projects (1 minute)
 
@@ -180,7 +181,51 @@ Repository: im-sandbox-phanirb/projec1-rep2
 
 ---
 
+### Step 5: Update Pipeline YAML - Add GitHub Trigger (1 minute - Automated)
+
+**The Problem:**
+- Azure DevOps pipeline is still configured to use Azure Git as trigger source
+- Need to switch trigger to GitHub so webhook actually triggers the pipeline
+
+**What the script does:**
+- Uses GitHub API to read each repository's azure-pipelines.yml file
+- Checks if `trigger:` block already exists
+- If missing: Adds `trigger: - main` to the YAML file
+- Commits the change back to the repository
+- Reports success or explains manual steps
+
+**Example output:**
+```
+STEP 5: Update Pipeline YAML - Add GitHub Trigger
+====================================================
+
+Updating pipeline YAML files to add GitHub trigger:
+
+Repository: im-sandbox-phanirb/projec1-rep1
+  File: azure-pipelines.yml
+  [OK] Trigger block already exists
+
+Repository: im-sandbox-phanirb/projec1-rep2
+  File: azure-pipelines.yml
+  [OK] Trigger block added
+    Commit: Add GitHub trigger to pipeline YAML
+```
+
+**Why this step is critical:**
+- Without trigger block: GitHub webhook sends event but pipeline doesn't start
+- With trigger block: Pipeline automatically starts when code is pushed
+- Script configures it automatically - no manual YAML editing needed
+
+**What gets added to YAML:**
+```yaml
+trigger:
+- main
+```
+
+---
+
 ## CSV File Format
+```
 
 ### Columns
 ```
@@ -346,12 +391,25 @@ STEP 4: Validate and Create Webhooks (Automated)
     - Check: No webhook found
     - Create: yes
     - Result: Webhook created successfully (ID: 12345)
-    - Next: Update pipeline YAML with trigger block
     
   Repository 3 (my-org/my-repo-3):
     - Check: Already has webhook ✓
 
-DONE: CSV ready, webhooks validated/created, logs created
+STEP 5: Update Pipeline YAML - Add GitHub Trigger (Automated)
+  Repository 1 (my-org/my-repo-1):
+    - File: azure-pipelines.yml
+    - Check: Trigger block already exists ✓
+    
+  Repository 2 (my-org/my-repo-2):
+    - File: azure-pipelines.yml
+    - Add: trigger: - main
+    - Commit: Add GitHub trigger to pipeline YAML ✓
+    
+  Repository 3 (my-org/my-repo-3):
+    - File: azure-pipelines.yml
+    - Check: Trigger block already exists ✓
+
+DONE: CSV ready, webhooks validated/created, YAMLs updated, pipeline ready!
 ```
 
 ---
@@ -362,23 +420,25 @@ DONE: CSV ready, webhooks validated/created, logs created
 |------|--------|------|
 | 1 | Validate Azure DevOps PAT, Get GitHub PAT, List Projects | 1 min |
 | 2 | Select Project, List Service Connections | 1 min |
-| 3 | Configure Pipelines, Update CSV | 5 min |
-| 4 | Validate Webhooks (Automated API Check) | 1 min |
-| **Total** | **Complete Setup** | **~8 min** |
+| 3 | Configure Pipelines, Update CSV | 1 min |
+| 4 | Validate Webhooks & Create Missing Ones | 1 min |
+| 5 | Update Pipeline YAML - Add GitHub Trigger | 1 min |
+| **Total** | **Complete Setup** | **~5 min** |
 
 ---
 
 ## Features
 
-✅ Simple 4-step workflow  
+✅ Simple 5-step fully automated workflow  
 ✅ Auto-fills CSV format  
 ✅ Validates Azure DevOps PAT  
 ✅ Collects and stores GitHub PAT  
 ✅ Lists projects and service connections  
-✅ **Validates webhooks automatically via GitHub API** (no manual clicking)  
-✅ **Creates missing webhooks automatically** (no GitHub UI needed)  
-✅ Checks both sides: Azure DevOps trigger + GitHub webhook  
-✅ Guides next steps (update pipeline YAML)  
+✅ **Validates webhooks automatically via GitHub API**  
+✅ **Creates missing webhooks automatically**  
+✅ **Updates pipeline YAML files automatically** (adds GitHub trigger)  
+✅ Commits YAML changes back to repositories  
+✅ Guides next steps  
 ✅ Logs all actions  
 ✅ Clear error messages  
 ✅ Clean, readable code  
