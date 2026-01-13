@@ -10,6 +10,7 @@ param(
 $script:ConfigFile = "SERVICE-CONNECTIONS.csv"
 $script:AzDoBaseUrl = "https://dev.azure.com"
 $script:PAT = $null
+$script:GitHubPAT = $null
 $script:Organization = $null
 $script:Project = $null
 $script:RepositoryName = $null
@@ -113,6 +114,30 @@ function Check-Prerequisites {
         Write-Host "Skipped. You will provide PAT in next steps." -ForegroundColor Yellow
     }
     
+    Write-Host ""
+    Write-Host "GITHUB PAT SETUP:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "You also need a Personal Access Token (PAT) for GitHub." -ForegroundColor White
+    Write-Host "Required scopes:" -ForegroundColor Gray
+    Write-Host "  - repo (Full control of repositories)"
+    Write-Host "  - admin:repo_hook (Full control of repository hooks)"
+    Write-Host "  - read:org (Read organization data)"
+    Write-Host ""
+    
+    $githubPatInput = Read-Host "Enter your GitHub PAT (or press Enter to skip for now)"
+    
+    if ($githubPatInput) {
+        $script:GitHubPAT = $githubPatInput
+        Write-Host "GitHub PAT stored for current session" -ForegroundColor Green
+    } else {
+        Write-Host "Skipped. You will provide GitHub PAT in Step 2." -ForegroundColor Yellow
+    }
+    
+    # Validate PATs if provided
+    Write-Host ""
+    Write-Host "VALIDATING PATs:" -ForegroundColor Yellow
+    Validate-PATs
+    
     # Load configuration
     Load-Configuration
 }
@@ -166,7 +191,15 @@ function Create-ServiceConnectionWithPAT {
     }
     
     # GitHub PAT service connection payload
-    $githubPAT = Read-Host "Enter your GitHub PAT (for service connection)"
+    $githubPAT = $script:GitHubPAT
+    if (-not $githubPAT) {
+        $githubPAT = Read-Host "Enter your GitHub PAT (for service connection)"
+    }
+    
+    if (-not $githubPAT) {
+        Write-Host "GitHub PAT is required. Aborting." -ForegroundColor Red
+        return
+    }
     
     $body = @{
         name = $script:ServiceConnectionName
@@ -327,6 +360,72 @@ function Test-WebhookSetup {
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+function Validate-PATs {
+    Write-Host ""
+    
+    # Validate Azure DevOps PAT
+    if ($script:PAT) {
+        Write-Host "Validating Azure DevOps PAT..." -ForegroundColor Cyan
+        
+        try {
+            $PatToken = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($script:PAT)"))
+            $headers = @{
+                Authorization = "Basic $PatToken"
+                "Content-Type" = "application/json"
+            }
+            
+            # Try to get organizations
+            $testUrl = "https://dev.azure.com/_apis/organizations?api-version=6.0"
+            $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
+            
+            Write-Host "  - Azure DevOps PAT: VALID" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  - Azure DevOps PAT: INVALID" -ForegroundColor Red
+            Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
+            $script:PAT = $null
+        }
+    } else {
+        Write-Host "  - Azure DevOps PAT: NOT PROVIDED" -ForegroundColor Yellow
+    }
+    
+    # Validate GitHub PAT
+    if ($script:GitHubPAT) {
+        Write-Host "Validating GitHub PAT..." -ForegroundColor Cyan
+        
+        try {
+            $headers = @{
+                Authorization = "token $($script:GitHubPAT)"
+                "Accept" = "application/vnd.github.v3+json"
+            }
+            
+            # Try to get authenticated user
+            $testUrl = "https://api.github.com/user"
+            $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
+            
+            Write-Host "  - GitHub PAT: VALID (User: $($response.login))" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  - GitHub PAT: INVALID" -ForegroundColor Red
+            Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
+            $script:GitHubPAT = $null
+        }
+    } else {
+        Write-Host "  - GitHub PAT: NOT PROVIDED" -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
+    
+    # Check if ready to proceed
+    if ($script:PAT -and $script:GitHubPAT) {
+        Write-Host "All PATs validated successfully! Ready to proceed." -ForegroundColor Green
+    } elseif ($script:PAT) {
+        Write-Host "Azure DevOps PAT valid. You can provide GitHub PAT in Step 2." -ForegroundColor Yellow
+    } else {
+        Write-Host "WARNING: No valid PATs. You will need to provide them in the next steps." -ForegroundColor Yellow
+    }
+}
 
 function Load-Configuration {
     if (-not (Test-Path $script:ConfigFile)) {
