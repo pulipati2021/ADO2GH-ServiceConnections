@@ -1,4 +1,5 @@
-# Azure DevOps GitHub Pipeline Setup - Version 4.0 Clean
+# Azure DevOps GitHub Pipeline Setup - Version 4.0
+# Clean, simple 4-step workflow
 param([string]$Action = "start")
 
 $ConfigFile = "SERVICE-CONNECTIONS.csv"
@@ -19,15 +20,15 @@ function Show-Menu {
     Write-Host ""
     Write-Host "  [1] Step 1: Get PAT and List Projects" -ForegroundColor Green
     Write-Host "  [2] Step 2: Select Project and View Service Connections" -ForegroundColor Green
-    Write-Host "  [3] Step 3: Configure Pipelines (Fill CSV)" -ForegroundColor Green
-    Write-Host "  [4] Step 4: Validate Webhooks" -ForegroundColor Green
+    Write-Host "  [3] Step 3: Configure Pipelines - Fill CSV" -ForegroundColor Green
+    Write-Host "  [4] Step 4: Validate Webhooks in GitHub" -ForegroundColor Green
     Write-Host "  [5] Exit" -ForegroundColor Red
     Write-Host ""
 }
 
 function Step1-GetPAT {
-    Write-Host "`nSTEP 1: Get Azure DevOps PAT and List Projects" -ForegroundColor Cyan
-    Write-Host "================================================" -ForegroundColor Cyan
+    Write-Host "`nSTEP 1: Get PAT and List Projects" -ForegroundColor Cyan
+    Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
     
     $pat = Read-Host "Enter your Azure DevOps PAT"
@@ -42,7 +43,7 @@ function Step1-GetPAT {
         $projectsUrl = "$AzDoUrl/$org/_apis/projects?api-version=7.0"
         $response = Invoke-RestMethod -Uri $projectsUrl -Headers $header -Method Get -ErrorAction Stop
         
-        Write-Host "✓ PAT validated!" -ForegroundColor Green
+        Write-Host "[OK] PAT validated!" -ForegroundColor Green
         Write-Log "PAT validated for org: $org"
         
         if ($response.value.Count -eq 0) {
@@ -58,7 +59,7 @@ function Step1-GetPAT {
         $global:Projects = $response.value
         
     } catch {
-        Write-Host "✗ Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
         Write-Log "ERROR in Step 1: $($_.Exception.Message)"
     }
 }
@@ -118,7 +119,7 @@ function Step2-SelectProject {
         Write-Log "Found $($scResponse.value.Count) service connections in project: $($project.name)"
         
     } catch {
-        Write-Host "✗ Error fetching service connections: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ERROR] Error fetching service connections: $($_.Exception.Message)" -ForegroundColor Red
         Write-Log "ERROR in Step 2: $($_.Exception.Message)"
     }
 }
@@ -165,7 +166,7 @@ function Step3-ConfigurePipelines {
     
     while ($addMore.ToLower() -eq "yes") {
         $pipelineCount++
-        Write-Host "Pipeline #$pipelineCount:" -ForegroundColor Yellow
+        Write-Host "Pipeline #$($pipelineCount):" -ForegroundColor Yellow
         
         $gitOrg = Read-Host "  GitHub Organization/Owner"
         $gitRepo = Read-Host "  GitHub Repository Name"
@@ -182,7 +183,7 @@ function Step3-ConfigurePipelines {
         }
         
         Add-Content -Path $ConfigFile -Value $row
-        Write-Host "✓ Added to CSV" -ForegroundColor Green
+        Write-Host "[OK] Added to CSV" -ForegroundColor Green
         
         Write-Log "Added pipeline: $pipelineName ($gitOrg/$gitRepo)"
         
@@ -230,10 +231,10 @@ function Step4-ValidateWebhooks {
         $verified = Read-Host "  Webhook verified? (yes/no)"
         
         if ($verified.ToLower() -eq "yes") {
-            Write-Host "  ✓ Verified" -ForegroundColor Green
+            Write-Host "[OK] Verified" -ForegroundColor Green
             Write-Log "Webhook verified: $owner/$repo"
         } else {
-            Write-Host "  ✗ Not verified" -ForegroundColor Red
+            Write-Host "[NO] Not verified" -ForegroundColor Red
             Write-Log "Webhook NOT verified: $owner/$repo"
         }
         
