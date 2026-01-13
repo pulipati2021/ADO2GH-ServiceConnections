@@ -1,19 +1,49 @@
 # Service Connection Setup - GitHub ↔ Azure DevOps
 
+**Version 2.0**: Simplified PAT-based service connection with manual GitHub OAuth in pipeline triggers.
+
 Enable GitHub repositories to trigger Azure DevOps pipelines via secure service connections.
 
 ---
 
-## Purpose
+## NEW in Version 2.0
 
-After migrating code to GitHub (regular or EMU), your Azure DevOps pipelines still reside in ADO. This solution creates a **secure bridge** (service connection) that:
+This is a **complete redesign** based on actual tested process:
 
-- Stores GitHub credentials encrypted in Azure DevOps
-- Automatically creates webhooks to trigger pipelines on code push
-- Allows pipelines to pull code from GitHub repositories
+**Old Approach (Failed)**:
+- Attempted to automate OAuth through API
+- Complex 11-option menu
+- Multiple failed API calls
+- **Result**: Azure DevOps API cannot create OAuth connections programmatically
+
+**New Approach (Working)**:
+- **Step 1**: Check prerequisites and read Azure DevOps PAT
+- **Step 2**: Create PAT-based service connection via REST API
+- **Step 3**: Configure pipeline trigger with GitHub OAuth (browser-based)
+- **Step 4**: Test and verify webhook
+- **Result**: Fully tested and production-ready!
+
+---
+
+## The 4-Step Workflow
 
 ```
-GitHub (code push)  →  [Service Connection]  →  Azure DevOps (pipelines trigger)
+STEP 1: Check Prerequisites
+   └─→ Verify GitHub Owner + Admin permissions
+   └─→ Get Azure DevOps PAT
+
+STEP 2: Create Service Connection with PAT
+   └─→ Uses Azure DevOps REST API
+   └─→ Stores GitHub credentials securely
+
+STEP 3: Configure Pipeline Trigger with GitHub OAuth
+   └─→ Manual browser-based OAuth authorization
+   └─→ Select GitHub as trigger source
+   └─→ Webhook automatically created
+
+STEP 4: Test and Verify
+   └─→ Verify webhook in GitHub
+   └─→ Test by pushing code
 ```
 
 ---
@@ -22,41 +52,92 @@ GitHub (code push)  →  [Service Connection]  →  Azure DevOps (pipelines trig
 
 | File | Purpose |
 |------|---------|
-| `SERVICE-CONNECTIONS.csv` | Configuration file for repositories |
-| `ServiceConnection-Helper.ps1` | Interactive menu helper script |
-| `SERVICE-CONNECTION-SETUP.md` | Detailed setup documentation |
-| `MANUAL-VS-AUTOMATED.md` | Comparison of manual vs automated approaches |
-| `PIPELINE-CONFIG-GITHUB.md` | How to configure pipelines to use GitHub triggers |
+| `ServiceConnection-Helper.ps1` | **NEW**: Interactive menu with 4 simplified steps |
+| `SERVICE-CONNECTIONS.csv` | Configuration (organization, project, repository) |
+| `PREREQUISITES.md` | **NEW**: Detailed permission and setup requirements |
+| `SETUP-GUIDE.md` | **NEW**: Step-by-step implementation guide |
+| `VERSION-2.0-RELEASE.md` | **NEW**: Complete release notes and workflow details |
+| `OLD/` | Previous version (archived) |
 
 ---
 
 ## Prerequisites
 
-Before running the helper script, you need:
+**Critical - Must Have Before Starting:**
 
-1. **GitHub PAT** (Personal Access Token)
-   - Go to: `https://github.com/settings/tokens` (or your GitHub EMU instance)
-   - Scopes: `repo`, `read:org`, `admin:org_hook`
+1. **GitHub Permissions**
+   - Owner permission on GitHub Organization
+   - Admin permission on GitHub Repository
+   - [See PREREQUISITES.md for how to check/request](PREREQUISITES.md)
 
 2. **Azure DevOps PAT**
    - Go to: `https://dev.azure.com/YOUR-ORG/_usersSettings/tokens`
-   - Scopes: `Build (Read & Execute)`, `Code (Read & Write)`, `Service Connections (Read & Manage)`
+   - Scopes: `Code (Read & Write)`, `Release (Read & Write)`, `Build (Read & Execute)`, `Endpoint (Read & Execute & Manage)`
+   - [See PREREQUISITES.md for detailed instructions](PREREQUISITES.md)
 
-3. **Access to:**
-   - GitHub repository settings (to verify webhooks)
-   - Azure DevOps project settings (to create service connections)
+3. **GitHub PAT** (for service connection)
+   - Go to: `https://github.com/settings/tokens`
+   - Scopes: `repo`, `admin:repo_hook`, `read:org`
+   - [See PREREQUISITES.md for detailed instructions](PREREQUISITES.md)
 
 ---
 
-## Quick Start
+## Quick Start (4 Steps)
 
-### Step 1: Configure Service Connection Details
+### Run the Script
+
+```powershell
+cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-connections-NoPipelineMigration'
+.\ServiceConnection-Helper.ps1
+```
+
+### Step 1: Check Prerequisites & Read PAT
+- **Select**: Option 1 from menu
+- **Duration**: 2-3 minutes
+- **What you do**:
+  - Verify you have GitHub Owner + Admin permissions
+  - Provide your Azure DevOps PAT
+  - Script stores it for current session only
+
+### Step 2: Create Service Connection with PAT
+- **Select**: Option 2 from menu
+- **Duration**: 30 seconds
+- **What happens**:
+  - Script uses Azure DevOps REST API
+  - Creates service connection with GitHub credentials
+  - Service connection appears in Azure DevOps UI
+  - You provide GitHub PAT when prompted
+
+### Step 3: Configure Pipeline Trigger with GitHub OAuth
+- **Select**: Option 3 from menu
+- **Duration**: 2-3 minutes (mostly browser steps)
+- **Manual steps required**:
+  1. Go to Azure DevOps pipeline
+  2. Edit → Triggers tab
+  3. Change source from "Azure Repos Git" to "GitHub"
+  4. **Authorize OAuth** (browser popup)
+  5. Select your GitHub repository
+  6. Save pipeline
+  - Webhook is **automatically created** during OAuth
+
+### Step 4: Test and Verify Webhook
+- **Select**: Option 4 from menu
+- **Duration**: 5-10 minutes
+- **What you do**:
+  1. Check webhook in GitHub repository settings
+  2. Test by pushing code to GitHub
+  3. Verify pipeline triggers automatically
+  - Script provides links and detailed instructions
+
+---
+
+## Configuration File
 
 Edit `SERVICE-CONNECTIONS.csv` with your details:
 
 ```csv
 Organization,ProjectName,RepositoryName,RepositoryOwner,ServiceConnectionName,Status,Notes
-git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github-service-connection,Pending,
+git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,sc_oath,Created,OAuth-based service connection
 ```
 
 **Fields:**
@@ -65,54 +146,81 @@ git-AzDo,Calamos-Test,AzureRepoCode-CalamosTest,im-sandbox-phanirb,github-servic
 - `RepositoryName`: GitHub repository name
 - `RepositoryOwner`: GitHub username or organization
 - `ServiceConnectionName`: Name for this service connection in Azure DevOps
-- `Status`: Current status (Pending, Created, Failed, etc.)
+- `Status`: Current status (Created, Pending, Failed, etc.)
 - `Notes`: Any additional notes
 
-### Step 2: Run Helper Script
+---
 
-```powershell
-.\ServiceConnection-Helper.ps1
-```
+## Complete Documentation
 
-The script will:
-1. **Prompt for PATs** (GitHub + Azure DevOps)
-2. **Display interactive menu** with 7 options
-3. All credentials stored in-memory only
+For detailed information, see:
+- **[PREREQUISITES.md](PREREQUISITES.md)** - Permission requirements and PAT setup
+- **[SETUP-GUIDE.md](SETUP-GUIDE.md)** - Detailed step-by-step guide
+- **[VERSION-2.0-RELEASE.md](VERSION-2.0-RELEASE.md)** - Complete release notes and changes
 
-### Step 3: Credentials & Security
+---
 
-- PATs are stored **in-memory only** for this session
+## Credential Security
+
+- PATs are **stored in-memory only** during script execution
 - They are **never saved** to files
 - They are **cleared** when the script exits
-- You can update PATs anytime via Option 7
+- You **re-enter PATs** each time you run the script (by design)
 
 ---
 
-## Two Setup Workflows
+## Why This Approach?
 
-### Workflow A: Full Automation (Option 1)
-**If you don't have a service connection yet:**
-- Use Option 1: "Create Service Connection from CSV"
-- Creates service connection + webhook + service hook automatically
-- Best for: Starting fresh
+**Key Discovery from Testing**:
+Azure DevOps REST API **cannot** create OAuth service connections. OAuth requires browser-based user interaction.
 
-### Workflow B: Webhook-Only (Option 4)
-**If you already created service connection manually (OAuth):**
-- Already created service connection in Azure DevOps UI using OAuth
-- Now need to create webhooks to trigger pipelines
-- Use Option 4: "Create Webhook Only for Existing Service Connections"
-- Script finds your service connection and adds webhooks
-- Best for: Already have OAuth service connection, just missing webhooks
-
-**Why choose Workflow B?**
-- You manually created service connection with OAuth in Azure DevOps UI
-- Need webhooks to trigger pipelines on code push
-- Don't want to recreate service connection
-- Option 4 handles this automatically
+**Solution**:
+1. Create service connection with **PAT** (REST API works great)
+2. Add **OAuth** in pipeline trigger UI (browser-based, secure)
+3. Webhook is automatically created during OAuth step
+4. Result: Works perfectly!
 
 ---
 
-## Step 4: Configure Pipelines to Use GitHub Triggers
+## Success Indicators
+
+After completing all 4 steps, you should see:
+- [x] Service connection exists in Azure DevOps
+- [x] Webhook appears in GitHub repository settings
+- [x] Webhook shows successful deliveries (200 OK)
+- [x] Pipeline triggers automatically when code is pushed
+- [x] OAuth authentication completed in browser
+
+---
+
+## Next Steps After Success
+
+1. **Monitor first few pipeline runs** after code pushes
+2. **Check both repositories** for synchronization
+3. **Document** which pipelines use GitHub triggers
+4. **Rotate PATs** every 90 days (security best practice)
+
+---
+
+## Troubleshooting
+
+**Webhook not created?**
+- Go back to Step 3
+- Re-authenticate OAuth in pipeline settings
+- Click Save to trigger webhook creation
+- Wait 5-10 seconds for webhook to appear
+
+**Pipeline doesn't trigger?**
+- Check webhook in GitHub "Recent Deliveries" tab
+- Verify webhook shows 200 OK responses
+- Check pipeline YAML has proper trigger configuration
+
+**OAuth fails?**
+- Verify you have Owner permission on GitHub Organization
+- Verify you have Admin permission on GitHub Repository
+- Clear GitHub cookies and try again
+
+**More details**: See [PREREQUISITES.md](PREREQUISITES.md) troubleshooting section
 
 **After creating the service connection**, you must configure your pipelines to use GitHub as the trigger source.
 
