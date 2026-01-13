@@ -1,44 +1,46 @@
 # Service Connection Setup - GitHub ↔ Azure DevOps
 
-**Version 2.0**: Simplified PAT-based service connection with manual GitHub OAuth in pipeline triggers.
+**Version 3.0**: Simplified manual OAuth service connection + automated pipeline validation.
 
-Enable GitHub repositories to trigger Azure DevOps pipelines via secure service connections.
+Enable GitHub repositories to trigger Azure DevOps pipelines via secure OAuth service connections.
 
 ---
 
-## NEW in Version 2.0
+## NEW in Version 3.0
 
-This is a **complete redesign** based on actual tested process:
+This is a **complete redesign** based on architectural insights:
 
-**Old Approach (Failed)**:
-- Attempted to automate OAuth through API
-- Complex 11-option menu
-- Multiple failed API calls
-- **Result**: Azure DevOps API cannot create OAuth connections programmatically
+**v2.0 Approach (Too Complex)**:
+- Attempted API-based service connection creation with PAT
+- Required GitHub PAT input
+- Complex validation logic
+- **Issue**: Still required manual OAuth in pipeline triggers
 
-**New Approach (Working)**:
-- **Step 1**: Check prerequisites and read Azure DevOps PAT
-- **Step 2**: Create PAT-based service connection via REST API
-- **Step 3**: Configure pipeline trigger with GitHub OAuth (browser-based)
+**v3.0 Approach (Simplified)**:
+- **Step 1**: Create OAuth service connection manually in Azure DevOps UI (one time)
+- **Step 2**: Run script to setup and validate configuration
+- **Step 3**: Update pipelines to use the service connection
 - **Step 4**: Test and verify webhook
-- **Result**: Fully tested and production-ready!
+- **Result**: Cleaner, simpler, more reliable!
 
 ---
 
 ## The 4-Step Workflow
 
 ```
-STEP 1: Check Prerequisites
-   └─→ Verify GitHub Owner + Admin permissions
-   └─→ Get Azure DevOps PAT
+STEP 1: Create Service Connection with OAuth (Manual - UI)
+   └─→ Go to Azure DevOps → Service Connections
+   └─→ Click "New GitHub" → Authorize with OAuth
+   └─→ Done! (One time only)
 
-STEP 2: Create Service Connection with PAT
-   └─→ Uses Azure DevOps REST API
-   └─→ Stores GitHub credentials securely
+STEP 2: Run Script Setup
+   └─→ Provide Azure DevOps PAT
+   └─→ Script validates configuration
+   └─→ Ready to use
 
-STEP 3: Configure Pipeline Trigger with GitHub OAuth
-   └─→ Manual browser-based OAuth authorization
-   └─→ Select GitHub as trigger source
+STEP 3: Update Pipelines
+   └─→ Add GitHub resource to pipeline YAML
+   └─→ Or use Azure DevOps UI trigger config
    └─→ Webhook automatically created
 
 STEP 4: Test and Verify

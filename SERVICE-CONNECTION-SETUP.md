@@ -1,52 +1,238 @@
-# Service Connection Setup for GitHub EMU → Azure DevOps Migration
+# Service Connection Setup - Version 3.0
 
-**Purpose:** Enable GitHub EMU code pushes to trigger Azure DevOps pipelines
+**Purpose:** Enable GitHub code pushes to trigger Azure DevOps pipelines via OAuth
 
 ---
 
 ## The Problem
 
-You migrated some repos to GitHub EMU, but your pipelines are still in Azure DevOps. When code is pushed to GitHub EMU, nothing happens in Azure DevOps.
+You have code in GitHub, but your pipelines are in Azure DevOps. When code is pushed to GitHub, nothing happens in Azure DevOps.
 
 ```
-GitHub EMU (code)  →  [No Connection]  →  Azure DevOps (pipelines)
-                           ❌
+GitHub (code)  →  [No Connection]  →  Azure DevOps (pipelines)
+   (push)                ❌
 ```
 
 ---
 
 ## The Solution
 
-Service Connection = Secure bridge that:
-- Stores GitHub EMU credentials (PAT) encrypted in Azure DevOps
-- Sets up webhook from GitHub EMU → Azure DevOps
-- Allows pipelines to read code from GitHub EMU and trigger on push
+Service Connection with OAuth = Secure bridge that:
+- Authorizes Azure DevOps to access your GitHub repository
+- Sets up webhook from GitHub → Azure DevOps
+- Allows pipelines to trigger automatically on push
 
 ```
-GitHub EMU (code)  →  [Service Connection]  →  Azure DevOps (pipelines)
-   (push event)            (webhook)               (auto trigger)
-                           ✅
+GitHub (code)  →  [OAuth Service Connection]  →  Azure DevOps (pipelines)
+   (push event)        (webhook trigger)            (auto run)
+                            ✅
 ```
+
+---
+
+## Why OAuth?
+
+✅ **Secure**: No static PAT stored  
+✅ **User-Controlled**: OAuth happens in browser with your approval  
+✅ **Auto-Refresh**: Tokens refresh automatically  
+✅ **Audit Trail**: GitHub logs all authorized access  
+✅ **Simple**: One-time browser authorization  
 
 ---
 
 ## Setup Steps
 
-### Step 1: Prepare PATs
+### Step 1: Create Service Connection with OAuth (Azure DevOps UI)
 
-**GitHub EMU PAT:**
-1. Go to: `https://your-emu-server/settings/tokens`
-2. Click "Generate new token (classic)"
-3. Name: `azure-devops-connection`
-4. Scopes: `repo`, `read:org`, `admin:org_hook`
-5. Copy token (save securely)
+**This is a one-time manual step. You do this in your browser.**
 
-**Azure DevOps PAT:**
-1. Go to: `https://dev.azure.com/your-org/_usersSettings/tokens`
+1. Go to Azure DevOps:
+   ```
+   https://dev.azure.com/[ORG]/[PROJECT]/_settings/adminservices
+   ```
+
+2. Click "New Service Connection"
+
+3. Select "GitHub"
+
+4. Click "Authorize AzureDevOps"
+   - Browser opens GitHub login
+   - You log in with your GitHub account
+   - You click "Authorize"
+   - Browser returns to Azure DevOps
+   - Shows: "Successfully created GitHub service connection"
+
+5. Name the service connection: `github-oauth`
+
+6. Click "Save"
+
+**Result**: ✅ Service connection created with OAuth
+
+---
+
+### Step 2: Prepare Azure DevOps PAT
+
+1. Go to: `https://dev.azure.com/[ORG]/_usersSettings/tokens`
 2. Click "New Token"
-3. Name: `github-emu-setup`
-4. Scopes: `Build (Read & Execute)`, `Code (Read & Write)`, `Service Connections (Read & Manage)`
-5. Copy token (save securely)
+3. Name: `github-pipeline-setup`
+4. Scopes: `Code (Read & Write)`, `Build (Read & Execute)`
+5. Copy token (you'll provide this to the script)
+
+---
+
+### Step 3: Run Script Setup
+
+```powershell
+cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-connections-NoPipelineMigration'
+.\ServiceConnection-Helper.ps1
+```
+
+Select: `[1] Setup`
+
+When prompted:
+- "Is your service connection created with OAuth?" → Answer: `yes`
+- "Azure DevOps PAT" → Paste the PAT from Step 2
+
+**Result**: ✅ Script validates configuration
+
+---
+
+### Step 4: Run Script Validate
+
+Still in the menu, select: `[2] Validate`
+
+Script will:
+- List all GitHub service connections
+- Confirm your `github-oauth` service connection exists
+- Show connection details
+
+**Result**: ✅ Service connection verified in Azure DevOps
+
+---
+
+### Step 5: Update Pipeline YAML
+
+Edit your pipeline YAML file (`azure-pipelines.yml`) to add GitHub trigger:
+
+```yaml
+trigger:
+  branches:
+    include:
+    - main
+
+resources:
+  repositories:
+  - repository: github-oauth
+    type: github
+    name: [OWNER]/[REPO]
+    endpoint: github-oauth
+    trigger: true
+```
+
+Commit and push to GitHub.
+
+**Result**: ✅ Pipeline configured for GitHub webhook trigger
+
+---
+
+### Step 6: Run Script Test
+
+In the menu, select: `[4] Test`
+
+Script will guide you to:
+- Check webhook in GitHub settings
+- Test by pushing code
+- Verify pipeline triggers
+
+**Result**: ✅ Pipeline triggers automatically on GitHub push
+
+---
+
+## Success Indicators
+
+After setup complete:
+
+✅ Service connection `github-oauth` appears in Azure DevOps  
+✅ Webhook appears in GitHub repository settings  
+✅ Webhook shows 200 OK responses in "Recent Deliveries"  
+✅ Pipeline triggers automatically when code is pushed  
+✅ Build completes successfully  
+
+---
+
+## Troubleshooting
+
+### Service Connection Creation Failed
+- OAuth requires Owner permission on GitHub organization
+- Go to GitHub: Settings → Applications → Authorized OAuth Apps
+- Check that "AzureDevOps" is authorized
+- Try creating service connection again
+
+### OAuth Popup Didn't Appear
+- Browser popup blocker might be blocking it
+- Disable popup blocker for Azure DevOps
+- Clear browser cookies
+- Try again
+
+### Webhook Not Appearing in GitHub
+- Go back to Step 5, edit pipeline YAML again
+- Save and wait 10 seconds
+- Check GitHub Settings → Webhooks again
+
+### Pipeline Not Triggering
+- Check webhook "Recent Deliveries" shows 200 OK
+- Verify pipeline YAML `trigger: true` is set
+- Check that you pushed to the configured branch (default: main)
+- Wait 2-3 minutes after push
+
+---
+
+## Key Differences from PAT-Based Approach
+
+| Aspect | v2.0 (PAT) | v3.0 (OAuth) |
+|--------|-----------|---------|
+| Service Connection Creation | API (complex) | UI (simple) |
+| Credentials Stored | GitHub PAT | OAuth token |
+| Token Refresh | Manual | Automatic |
+| Security | Good | Better |
+| User Interaction | Minimal | OAuth browser |
+| Webhook Setup | Manual | Automatic |
+
+---
+
+## Security Best Practices
+
+1. **GitHub OAuth Credentials**
+   - Stored securely in Azure DevOps
+   - Never exposed in scripts
+   - Auto-refresh by Azure DevOps
+
+2. **Azure DevOps PAT**
+   - Scoped to minimal permissions needed
+   - Rotated every 90 days
+   - Kept secure (never commit to repo)
+
+3. **Webhook Security**
+   - GitHub validates webhook signatures
+   - Deliveries logged in GitHub settings
+   - Only triggers on configured branches
+
+---
+
+## Next Steps
+
+After service connection works:
+
+1. Configure branch policies in GitHub
+2. Add PR triggers in pipeline YAML (`pr: [main]`)
+3. Monitor first few pipeline runs
+4. Add additional pipelines using same service connection
+
+---
+
+**Version**: 3.0 (OAuth-based)  
+**Last Updated**: January 13, 2026  
+**Status**: Production Ready
 
 ---
 
