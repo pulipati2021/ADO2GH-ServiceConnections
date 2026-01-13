@@ -45,11 +45,12 @@ cd 'C:\Users\Pulipati\Desktop\INFOMAGNUS\INFOMAGNUS\Migrations\ADO2GH\service-co
 - Saves everything to `SERVICE-CONNECTIONS.csv`
 - Allows multiple repos in one session
 
-### Validates Webhooks (Automated)
+### Validates Webhooks (Automated with Auto-Create)
 - Uses GitHub API to query webhooks
 - Checks for dev.azure.com webhook in each repo
-- Reports webhook status (found/not found)
-- No manual clicking required - API validates both sides
+- If missing: Offers to **create it automatically** via API
+- If found: Confirms webhook status
+- No manual clicking required - both query and create automated
 
 ---
 
@@ -133,18 +134,20 @@ git-AzDo,Calamos-Test,github-oauth,my-repo-1,my-org,azure-pipelines.yml,Pending,
 **What the script does:**
 - Uses GitHub API with your PAT to query each repository
 - Checks for webhooks pointing to `dev.azure.com`
-- Reports found/not found status
+- If webhook NOT found: Offers to **create it automatically**
+- If webhook found: Confirms it's active
 - Logs all results
 
-**Script validates automatically:**
+**Script validates and creates automatically:**
 - Repository name and owner
 - Webhook URL pattern (dev.azure.com)
 - Webhook status (active or inactive)
+- **Creates missing webhooks via GitHub API**
 
-**Example output:**
+**Example output - Webhook Exists:**
 ```
-STEP 4: Validate Webhooks in GitHub (Automated)
-=================================================
+STEP 4: Validate and Create Webhooks in GitHub (Automated)
+===========================================================
 
 Validating webhooks in GitHub repositories:
 
@@ -152,16 +155,28 @@ Repository: im-sandbox-phanirb/projec1-rep1
   [OK] Webhook found
     URL: https://dev.azure.com/...
     Status: Active
+```
 
+**Example output - Webhook Missing (Create it):**
+```
 Repository: im-sandbox-phanirb/projec1-rep2
   [NO] No webhook from dev.azure.com found
     Found 2 webhook(s) total
+  Create webhook now? (yes/no): yes
+  [OK] Webhook created successfully
+    Webhook ID: 12345
+  Next step: Update your pipeline YAML to use GitHub as trigger source
+    Add this to azure-pipelines.yml:
+      trigger:
+      - main
 ```
 
-**Why GitHub PAT required:**
-- GitHub API requires authentication for webhook access
-- Scope needed: `repo` + `admin:repo_hook`
+**Why this is better:**
+- No manual webhook creation needed
+- Uses GitHub API to query and create webhooks
+- GitHub PAT required: `repo` + `admin:repo_hook` scope
 - Script validates both sides: Azure DevOps trigger + GitHub webhook
+- Tells you exactly what to do next (update pipeline YAML)
 
 ---
 
@@ -323,17 +338,20 @@ STEP 3: Add Repositories
     - YAML File: azure-pipelines.yml
   Output: Row added to CSV
   
-STEP 4: Verify Webhooks
-  Check: https://github.com/my-org/my-repo-1/settings/hooks
-  ✓ Webhook verified
-  
-  Check: https://github.com/my-org/my-repo-2/settings/hooks
-  ✓ Webhook verified
-  
-  Check: https://github.com/my-org/my-repo-3/settings/hooks
-  ✓ Webhook verified
+STEP 4: Validate and Create Webhooks (Automated)
+  Repository 1 (my-org/my-repo-1):
+    - Check: Already has webhook ✓
+    
+  Repository 2 (my-org/my-repo-2):
+    - Check: No webhook found
+    - Create: yes
+    - Result: Webhook created successfully (ID: 12345)
+    - Next: Update pipeline YAML with trigger block
+    
+  Repository 3 (my-org/my-repo-3):
+    - Check: Already has webhook ✓
 
-DONE: CSV ready, webhooks verified, logs created
+DONE: CSV ready, webhooks validated/created, logs created
 ```
 
 ---
@@ -358,7 +376,9 @@ DONE: CSV ready, webhooks verified, logs created
 ✅ Collects and stores GitHub PAT  
 ✅ Lists projects and service connections  
 ✅ **Validates webhooks automatically via GitHub API** (no manual clicking)  
+✅ **Creates missing webhooks automatically** (no GitHub UI needed)  
 ✅ Checks both sides: Azure DevOps trigger + GitHub webhook  
+✅ Guides next steps (update pipeline YAML)  
 ✅ Logs all actions  
 ✅ Clear error messages  
 ✅ Clean, readable code  

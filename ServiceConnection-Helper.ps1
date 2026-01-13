@@ -202,8 +202,8 @@ function Step3-ConfigurePipelines {
 }
 
 function Step4-ValidateWebhooks {
-    Write-Host "`nSTEP 4: Validate Webhooks in GitHub (Automated)" -ForegroundColor Cyan
-    Write-Host "=================================================" -ForegroundColor Cyan
+    Write-Host "`nSTEP 4: Validate and Create Webhooks in GitHub (Automated)" -ForegroundColor Cyan
+    Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
     
     if (-not (Test-Path $ConfigFile)) {
@@ -223,7 +223,7 @@ function Step4-ValidateWebhooks {
         return
     }
     
-    Write-Host "Validating webhooks in GitHub repositories:" -ForegroundColor Green
+    Write-Host "Checking and creating webhooks in GitHub repositories:" -ForegroundColor Green
     Write-Host ""
     
     $header = @{Authorization = "Bearer $global:GitHubPAT"}
@@ -252,10 +252,46 @@ function Step4-ValidateWebhooks {
             } else {
                 Write-Host "  [NO] No webhook from dev.azure.com found" -ForegroundColor Red
                 Write-Host "    Found $($webhooks.Count) webhook(s) total" -ForegroundColor Yellow
-                Write-Log "Webhook NOT found: $owner/$repo"
+                
+                $createWebhook = Read-Host "  Create webhook now? (yes/no)"
+                
+                if ($createWebhook.ToLower() -eq "yes") {
+                    # Get Azure DevOps organization URL for webhook
+                    $webhookUrl = "https://dev.azure.com/$global:AzDoOrg/_apis/public/distributedtask/webhooks/github"
+                    
+                    $webhookPayload = @{
+                        name = "web"
+                        active = $true
+                        events = @("push", "pull_request")
+                        config = @{
+                            url = $webhookUrl
+                            content_type = "json"
+                            insecure_ssl = "0"
+                        }
+                    } | ConvertTo-Json
+                    
+                    try {
+                        $createResult = Invoke-RestMethod -Uri $webhooksUrl -Headers $header -Method Post -Body $webhookPayload -ContentType "application/json" -ErrorAction Stop
+                        Write-Host "  [OK] Webhook created successfully" -ForegroundColor Green
+                        Write-Host "    Webhook ID: $($createResult.id)" -ForegroundColor White
+                        Write-Log "Webhook created: $owner/$repo (ID: $($createResult.id))"
+                        
+                        Write-Host "  Next step: Update your pipeline YAML to use GitHub as trigger source" -ForegroundColor Yellow
+                        Write-Host "    Add this to azure-pipelines.yml:" -ForegroundColor Yellow
+                        Write-Host "      trigger:" -ForegroundColor White
+                        Write-Host "      - main" -ForegroundColor White
+                        Write-Host "        (or your branch name)" -ForegroundColor Gray
+                    } catch {
+                        Write-Host "  [ERROR] Could not create webhook: $($_.Exception.Message)" -ForegroundColor Red
+                        Write-Log "ERROR creating webhook for $($owner)/$($repo): $($_.Exception.Message)"
+                    }
+                } else {
+                    Write-Host "  Skipped webhook creation" -ForegroundColor Yellow
+                    Write-Log "Webhook creation skipped: $owner/$repo"
+                }
             }
         } catch {
-            Write-Host "  [ERROR] Could not verify: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  [ERROR] Could not verify webhooks: $($_.Exception.Message)" -ForegroundColor Red
             Write-Log "ERROR validating webhook for $($owner)/$($repo): $($_.Exception.Message)"
         }
         
