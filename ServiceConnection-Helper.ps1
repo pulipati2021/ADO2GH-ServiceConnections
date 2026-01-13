@@ -375,15 +375,25 @@ function Validate-PATs {
                 "Content-Type" = "application/json"
             }
             
-            # Try to get organizations
-            $testUrl = "https://dev.azure.com/_apis/organizations?api-version=6.0"
-            $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
+            # Load configuration to get org name
+            Load-Configuration
             
-            Write-Host "  - Azure DevOps PAT: VALID" -ForegroundColor Green
+            if ($script:Organization) {
+                # Try to get project details (simpler endpoint that requires valid PAT)
+                $testUrl = "https://dev.azure.com/$($script:Organization)/_apis/projects?api-version=7.0"
+                $response = Invoke-RestMethod -Uri $testUrl -Method GET -Headers $headers -TimeoutSec 5
+                Write-Host "  - Azure DevOps PAT: VALID (Organization: $($script:Organization))" -ForegroundColor Green
+            } else {
+                Write-Host "  - Azure DevOps PAT: SKIPPED (Cannot validate without organization from CSV)" -ForegroundColor Yellow
+            }
         }
         catch {
-            Write-Host "  - Azure DevOps PAT: INVALID" -ForegroundColor Red
+            Write-Host "  - Azure DevOps PAT: INVALID or EXPIRED" -ForegroundColor Red
             Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "    Troubleshooting:" -ForegroundColor Yellow
+            Write-Host "      1. Check if PAT is expired (regenerate if needed)"
+            Write-Host "      2. Verify PAT has required scopes: Code, Release, Build, Endpoint"
+            Write-Host "      3. Check organization and project names in SERVICE-CONNECTIONS.csv"
             $script:PAT = $null
         }
     } else {
@@ -409,6 +419,9 @@ function Validate-PATs {
         catch {
             Write-Host "  - GitHub PAT: INVALID" -ForegroundColor Red
             Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "    Troubleshooting:" -ForegroundColor Yellow
+            Write-Host "      1. Check if PAT is expired (regenerate if needed)"
+            Write-Host "      2. Verify PAT has required scopes: repo, admin:repo_hook, read:org"
             $script:GitHubPAT = $null
         }
     } else {
@@ -420,8 +433,8 @@ function Validate-PATs {
     # Check if ready to proceed
     if ($script:PAT -and $script:GitHubPAT) {
         Write-Host "All PATs validated successfully! Ready to proceed." -ForegroundColor Green
-    } elseif ($script:PAT) {
-        Write-Host "Azure DevOps PAT valid. You can provide GitHub PAT in Step 2." -ForegroundColor Yellow
+    } elseif ($script:GitHubPAT) {
+        Write-Host "GitHub PAT valid. You can provide Azure DevOps PAT in Step 2, or regenerate and try again." -ForegroundColor Yellow
     } else {
         Write-Host "WARNING: No valid PATs. You will need to provide them in the next steps." -ForegroundColor Yellow
     }
